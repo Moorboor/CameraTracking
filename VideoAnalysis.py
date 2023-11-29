@@ -2,9 +2,11 @@ import numpy as np
 import os
 import cv2
 from datetime import datetime, timedelta
+import sys
+import time
 
-
-
+record_bool = True if str(sys.argv[1]) == "1" else False
+print(record_bool)
 utc_time = datetime.utcnow()
 date_string = utc_time.strftime('%Y-%m-%d')
 time_string = utc_time.strftime('%H-%M-%S')
@@ -24,7 +26,7 @@ os.makedirs(folder_path, exist_ok=True)
 
 
 
-cap = cv2.VideoCapture(0, cv2.CAP_DSHOW) 
+cap = cv2.VideoCapture(1, cv2.CAP_DSHOW) 
 cap.set(cv2.CAP_PROP_FRAME_WIDTH , 320*3) 
 cap.set(cv2.CAP_PROP_FRAME_HEIGHT , 240*3) 
 
@@ -64,13 +66,15 @@ def new_glow_gradient(*, glow_gradient, new_frame):
     #glow_gradient = np.where(glow_gradient<5, 0, glow_gradient)
     return np.array(glow_gradient, dtype="uint8")
 
-def add_glow(*, frame, glow_gradient):
+def add_glow(*, frame, color_code, glow_gradient):
     frame = set_focus(frame=frame, start_height=100, start_width=80)
     frame = np.array(frame, dtype="float")
     glow_gradient = np.array(glow_gradient, dtype="float")
     color_gradient = np.zeros_like(frame)
-    color_gradient[:, :, 0] = 2*glow_gradient
-    #color_gradient[:, :, 1] = glow_gradient/2 
+
+    color_gradient[:, :, color_code] = 10*glow_gradient
+    color_gradient[color_gradient!=0] += 25
+    #color_gradient[:, :, 2] = 2*glow_gradient 
     frame += color_gradient
     return np.array(frame, dtype="uint8")
 
@@ -86,9 +90,10 @@ def record_video(*, record_bool=True):
     glow_bool = False
 
     kernel = (np.ones((10,10))/100)
-
+    start = time.time()
     while True:
 
+        now = time.time()
         ret, frame_source = cap.read()
         if not ret:
             break
@@ -115,10 +120,11 @@ def record_video(*, record_bool=True):
         render_text(frame=error_frame, text=error)
         # cv2.imshow('Movement', np.array(error_frame, dtype="uint8"))
         
+        color_code = int((round(now-start, 0)%30)/10)
         if glow_bool:
             glow_gradient = new_glow_gradient(glow_gradient=glow_gradient, new_frame=error_frame)
         # cv2.imshow("Glow", glow_gradient)
-        color_glow = add_glow(frame=frame_source, glow_gradient=glow_gradient)
+        color_glow = add_glow(frame=frame_source, color_code=color_code, glow_gradient=glow_gradient)
         cv2.imshow("Filter", color_glow)
 
 
@@ -143,7 +149,8 @@ def record_video(*, record_bool=True):
         if cv2.waitKey(25) & 0xFF == ord('1'):
             glow_bool = not glow_bool
             print(f"Glow: {glow_bool}")
-            
+            glow_gradient = np.zeros(shape=(500, 720))
+
         if n_saved == 20:
             break
 
@@ -154,6 +161,6 @@ def record_video(*, record_bool=True):
     return n_saved  
 
 if __name__ == "__main__":
-    n_saved = record_video(record_bool=True)
+    n_saved = record_video(record_bool=record_bool)
 
     print(f"Total {n_saved} videos saved!")
