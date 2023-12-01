@@ -4,9 +4,11 @@ import cv2
 from datetime import datetime, timedelta
 import sys
 import time
+import matplotlib.pyplot as plt
+
 
 record_bool = True if str(sys.argv[1]) == "1" else False
-print(record_bool)
+
 utc_time = datetime.utcnow()
 date_string = utc_time.strftime('%Y-%m-%d')
 time_string = utc_time.strftime('%H-%M-%S')
@@ -26,7 +28,7 @@ os.makedirs(folder_path, exist_ok=True)
 
 
 
-cap = cv2.VideoCapture(1, cv2.CAP_DSHOW) 
+cap = cv2.VideoCapture(0, cv2.CAP_DSHOW) 
 cap.set(cv2.CAP_PROP_FRAME_WIDTH , 800) 
 cap.set(cv2.CAP_PROP_FRAME_HEIGHT , 600) 
 
@@ -70,13 +72,23 @@ def add_glow(*, frame, color_code, glow_gradient):
     glow_gradient = np.array(glow_gradient, dtype="float")
     color_gradient = np.zeros_like(frame)
 
-    color_gradient[:, :, 0] = 2*glow_gradient
+    color_gradient[:, :, color_code] = 2*glow_gradient
     color_gradient[:,:, 0] += glow_gradient
     color_gradient[:,:, 1] += glow_gradient
     color_gradient[:,:, 2] += glow_gradient
     #color_gradient[color_gradient!=0] += 25
     frame += color_gradient
-    return np.array(frame, dtype="uint8")
+    return np.array(color_gradient, dtype="uint8")
+
+def get_error_frame(*, frames, kernel):
+    mean_frame1 = np.array(frames[:1])
+    mean_frame2 = np.array(frames[1:])
+    error_frame = mean_frame1.mean(axis=0) - mean_frame2.mean(axis=0)
+    error_frame = cv2.filter2D(src=error_frame, ddepth=-1, kernel=kernel) 
+    error_frame = np.where(error_frame<5, 0, error_frame)
+    error = (error_frame**2).mean()
+    return error_frame, error
+
 
 
 def record_video(*, record_bool=True):
@@ -84,8 +96,8 @@ def record_video(*, record_bool=True):
     frames = []
     errors = []
     recording_buffer = []
-    # width_corr, height_corr = (420, 500), (300, 350)
     width_corr, height_corr = (0, 800), (0, 600)
+    # width_corr, height_corr = (430, 480), (380, 390)
     glow_gradient = np.zeros(shape=(height_corr[1]-height_corr[0], width_corr[1]-width_corr[0]))
     i = 0
     n_saved = 0
@@ -93,6 +105,9 @@ def record_video(*, record_bool=True):
 
     kernel = (np.ones((10,10))/100)
     start = time.time()
+
+
+    
     while True:
 
         now = time.time()
@@ -100,10 +115,11 @@ def record_video(*, record_bool=True):
         if not ret:
             break
 
+        cv2.imshow("Original", frame_source)
         frame = set_focus(frame=frame_source, width_corr=width_corr, height_corr=height_corr)
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
-        cv2.imshow("Focus", cv2.rectangle(frame_source.copy(), (width_corr[0], height_corr[0]), (width_corr[1], height_corr[1]), color=(255,0,0), thickness=2))
+        # cv2.imshow("Focus", cv2.rectangle(frame_source.copy(), (width_corr[0], height_corr[0]), (width_corr[1], height_corr[1]), color=(255,0,0), thickness=2))
     
 
         # Recording
@@ -112,33 +128,28 @@ def record_video(*, record_bool=True):
         recording_buffer.append(frame_source)
         if len(recording_buffer) > 20: del recording_buffer[0]
         
-        mean_frame1 = np.array(frames[:1])
-        mean_frame2 = np.array(frames[1:])
-        error_frame = mean_frame1.mean(axis=0) - mean_frame2.mean(axis=0)
-        error_frame = cv2.filter2D(src=error_frame, ddepth=-1, kernel=kernel) 
-        error_frame = np.where(error_frame<5, 0, error_frame)
-        error = (error_frame**2).mean()
+        error_frame, error = get_error_frame(frames=frames, kernel=kernel)
         errors.append(error)
         render_text(frame=error_frame, text=error)
-        #cv2.imshow('Movement', np.array(error_frame, dtype="uint8"))
+        # cv2.imshow('Movement', np.array(error_frame, dtype="uint8"))
         
         color_code = int((round(now-start, 0)%30)/10)
         if glow_bool:
             glow_gradient = new_glow_gradient(glow_gradient=glow_gradient, new_frame=error_frame)
-        #cv2.imshow("Glow", glow_gradient)
+        # cv2.imshow("Glow", glow_gradient)
         
         color_glow = add_glow(frame=set_focus(frame=frame_source, width_corr=width_corr, height_corr=height_corr), color_code=color_code, glow_gradient=glow_gradient)
         cv2.imshow("Filter", color_glow)
 
 
-        if error > 5 or i != 0:
+        if error > 100 or i != 0:
             mean_error = np.array(errors[-10:]).mean()
             i += 1
             if i == 1:
                 recording = recording_buffer.copy()
             recording.append(frame_source)
 
-            if i > 80 and mean_error < 3:
+            if i > 800 and mean_error < 3:
                 i = 0
                 if record_bool:
                     save_video(recording=recording)
@@ -161,6 +172,7 @@ def record_video(*, record_bool=True):
     cap.release()
     # Close all OpenCV windows
     cv2.destroyAllWindows()
+    
     return n_saved  
 
 if __name__ == "__main__":
