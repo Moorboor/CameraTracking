@@ -7,9 +7,6 @@ import time
 import matplotlib.pyplot as plt
 
 
-record_bool = True if str(sys.argv[1]) == "-r" else False
-plot_bool = True if str(sys.argv[2]) == "-p" else False
-
 utc_time = datetime.utcnow()
 date_string = utc_time.strftime('%Y-%m-%d')
 time_string = utc_time.strftime('%H-%M-%S')
@@ -40,9 +37,8 @@ def set_focus(*, frame, width_corr, height_corr):
     if width_corr[1] == 0: width_corr[1] = frame.shape[1]
     return frame[height_corr[0]:height_corr[1], width_corr[0]:width_corr[1]]
 
-def render_text(*, frame, text=0.):
+def render_text(*, frame, text=0., position=(30,30)):
     text = f"{text:.0f}"
-    position = (30, 30)  # (x, y) coordinates
     font = cv2.FONT_HERSHEY_SIMPLEX
     font_scale = 1
     font_color = (255, 255, 255)  # BGR color (green in this example)
@@ -90,11 +86,11 @@ def get_error_frame(*, frames, kernel):
 class custom_figure():
     
     def __init__(self):
-        self.fig, self.ax = plt.subplots()
-        #plt.gca().set_facecolor("#1E1E1E")
+        self.fig, (self.ax1, self.ax_2) = plt.subplots(2)
+        self.ax1.set_facecolor("#0F0F0F")
         # animated=True tells matplotlib to only draw the artist when we
         # explicitly request it
-        (self.ln,) = self.ax.plot(range(200), range(0, 200), animated=True)
+        (self.ln,) = self.ax1.plot(range(200), range(0, 200), animated=True)
 
         # make sure the window is raised, but the script keeps going
         plt.show(block=False)
@@ -102,17 +98,18 @@ class custom_figure():
         # get copy of entire figure (everything inside fig.bbox) sans animated artist
         self.bg = self.fig.canvas.copy_from_bbox(self.fig.bbox)
         # draw the animated artist, this uses a cached renderer
-        self.ax.draw_artist(self.ln)
+        self.ax1.draw_artist(self.ln)
         # show the result to the screen, this pushes the updated RGBA buffer from the
         # renderer to the GUI framework so you can see it
         self.fig.canvas.blit(self.fig.bbox)
 
-    def update_figure(self, *, error):
+    def update_figure(self, *, errors):
+
         self.fig.canvas.restore_region(self.bg)
         # update the artist, neither the canvas state nor the screen have changed
-        self.ln.set_ydata(error)
+        self.ln.set_ydata(errors)
         # re-render the artist, updating the canvas state, but not the screen
-        self.ax.draw_artist(self.ln)
+        self.ax1.draw_artist(self.ln)
         # copy the image to the GUI state, but screen might not be changed yet
         self.fig.canvas.blit(self.fig.bbox)
         # flush any pending GUI events, re-painting the screen if needed
@@ -120,9 +117,9 @@ class custom_figure():
         # you can put a pause in if you want to slow things down
         # plt.pause(.1)
         return True
-
-def central_moments(*, errors):
-    return None
+    
+def central_moments(*, k, errors):
+    return ((errors- errors.mean())**k).mean()
 
 
 def record_video(*, record_bool=True, plot_bool=True):
@@ -163,11 +160,18 @@ def record_video(*, record_bool=True, plot_bool=True):
         
         error_frame, error = get_error_frame(frames=frames, kernel=kernel)
         errors.append(error)
-        # render_text(frame=error_frame, text=error)
 
         if len(errors)==200 and plot_bool:
-            c_mom_1 = central_moments(errors=errors)
-            figure.update_figure(error=errors)
+            cmom_1 = np.array(errors)[-20:].mean()
+            cmom_2 = central_moments(k=2, errors=np.array(errors)[-20:])
+            cmom_3 = central_moments(k=3, errors=np.array(errors)[-20:])/(central_moments(k=2, errors=np.array(errors)[-20:])**(0.5*3))
+            cmom_4 = central_moments(k=4, errors=np.array(errors)[-20:])/(central_moments(k=2, errors=np.array(errors)[-20:])**(0.5*(4)))
+            render_text(frame=frame_source, text=cmom_1, position=(30,30))
+            render_text(frame=frame_source, text=cmom_2, position=(30,60))
+            render_text(frame=frame_source, text=cmom_3, position=(30,90))
+            render_text(frame=frame_source, text=cmom_4, position=(30,120))
+            cv2.imshow("Original", frame_source)
+            figure.update_figure(errors=errors)
             del errors[0]
         # cv2.imshow('Movement', np.array(error_frame, dtype="uint8"))
         
@@ -213,6 +217,8 @@ def record_video(*, record_bool=True, plot_bool=True):
     return n_saved  
 
 if __name__ == "__main__":
+    record_bool = True if str(sys.argv[1]) == "-r" else False
+    plot_bool = True if str(sys.argv[2]) == "-p" else False
     n_saved = record_video(record_bool=record_bool)
 
     print(f"Total {n_saved} videos saved!")
