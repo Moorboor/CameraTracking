@@ -1,9 +1,10 @@
-import bpy
+#import bpy
 import os
 from datetime import datetime, timedelta
 
 ABS_PATH = os.path.abspath("")
 RENDER_PATH = os.path.join(ABS_PATH, "Renders")
+INPUT_PATH = os.path.join(ABS_PATH, "2023", "12", "01")
 os.makedirs(RENDER_PATH, exist_ok=True)
 
 utc_time = datetime.utcnow()
@@ -28,7 +29,7 @@ def render_video(output_path):
     bpy.ops.render.render(animation=True)
     return True
 
+video_names = os.listdir(INPUT_PATH)
+print(video_names)
 
-
-# Replace 'output_video.mp4' with your desired output file path and name
-render_video(os.path.join(RENDER_PATH, f"{date_string}.mp4"))
+# render_video(os.path.join(RENDER_PATH, f"{date_string}.mp4"))

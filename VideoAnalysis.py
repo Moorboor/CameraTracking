@@ -29,7 +29,7 @@ os.makedirs(folder_path, exist_ok=True)
 
 
 
-cap = cv2.VideoCapture(1, cv2.CAP_DSHOW) 
+cap = cv2.VideoCapture(0, cv2.CAP_DSHOW) 
 cap.set(cv2.CAP_PROP_FRAME_WIDTH , 800) 
 cap.set(cv2.CAP_PROP_FRAME_HEIGHT , 600) 
 
@@ -121,13 +121,17 @@ class custom_figure():
         # plt.pause(.1)
         return True
 
+def central_moments(*, errors):
+    return None
+
+
 def record_video(*, record_bool=True, plot_bool=True):
 
     frames = []
     errors = []
     recording_buffer = []
-    # width_corr, height_corr = (0, 800), (0, 600)
-    width_corr, height_corr = (430, 480), (380, 390)
+    width_corr, height_corr = (0, 800), (0, 600)
+    # width_corr, height_corr = (430, 480), (380, 390)
     glow_gradient = np.zeros(shape=(height_corr[1]-height_corr[0], width_corr[1]-width_corr[0]))
     i = 0
     n_saved = 0
@@ -135,8 +139,7 @@ def record_video(*, record_bool=True, plot_bool=True):
 
     kernel = (np.ones((10,10))/100)
     start = time.time()
-    if plot_bool == True:
-        figure = custom_figure()
+    if plot_bool == True: figure = custom_figure()
     
     while True:
 
@@ -149,7 +152,7 @@ def record_video(*, record_bool=True, plot_bool=True):
         frame = set_focus(frame=frame_source, width_corr=width_corr, height_corr=height_corr)
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
-        cv2.imshow("Focus", cv2.rectangle(frame_source.copy(), (width_corr[0], height_corr[0]), (width_corr[1], height_corr[1]), color=(255,0,0), thickness=2))
+        # cv2.imshow("Focus", cv2.rectangle(frame_source.copy(), (width_corr[0], height_corr[0]), (width_corr[1], height_corr[1]), color=(255,0,0), thickness=2))
     
 
         # Recording
@@ -160,9 +163,10 @@ def record_video(*, record_bool=True, plot_bool=True):
         
         error_frame, error = get_error_frame(frames=frames, kernel=kernel)
         errors.append(error)
-        render_text(frame=error_frame, text=error)
+        # render_text(frame=error_frame, text=error)
 
         if len(errors)==200 and plot_bool:
+            c_mom_1 = central_moments(errors=errors)
             figure.update_figure(error=errors)
             del errors[0]
         # cv2.imshow('Movement', np.array(error_frame, dtype="uint8"))
@@ -173,8 +177,7 @@ def record_video(*, record_bool=True, plot_bool=True):
         # cv2.imshow("Glow", glow_gradient)
         
         color_glow = add_glow(frame=set_focus(frame=frame_source, width_corr=width_corr, height_corr=height_corr), color_code=color_code, glow_gradient=glow_gradient)
-        # cv2.imshow("Filter", color_glow)
-
+        cv2.imshow("Filter", color_glow)
 
         if error > 10 or i != 0:
             i += 1
