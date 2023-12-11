@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 import sys
 import time
 import matplotlib.pyplot as plt
+import seaborn as sns
 
 
 utc_time = datetime.utcnow()
@@ -26,7 +27,7 @@ os.makedirs(folder_path, exist_ok=True)
 
 
 
-cap = cv2.VideoCapture(0, cv2.CAP_DSHOW) 
+cap = cv2.VideoCapture(1, cv2.CAP_DSHOW) 
 cap.set(cv2.CAP_PROP_FRAME_WIDTH , 800) 
 cap.set(cv2.CAP_PROP_FRAME_HEIGHT , 600) 
 
@@ -86,11 +87,13 @@ def get_error_frame(*, frames, kernel):
 class custom_figure():
     
     def __init__(self):
-        self.fig, (self.ax1, self.ax_2) = plt.subplots(2)
+        self.fig, (self.ax1, self.ax2) = plt.subplots(2, figsize=(1,1))
+        colors = sns.color_palette("rocket", 3)[1:]
         self.ax1.set_facecolor("#0F0F0F")
-        # animated=True tells matplotlib to only draw the artist when we
-        # explicitly request it
-        (self.ln,) = self.ax1.plot(range(200), range(0, 200), animated=True)
+        self.ax2.set_facecolor("#0F0F0F")
+
+        (self.ln1,) = self.ax1.plot(range(100), np.linspace(0,150, 100), animated=True, c=colors[0])
+        (self.ln2,) = self.ax2.plot(np.linspace(-50, 350, 50), np.linspace(0,0.35,50), animated=True, c=colors[1])
 
         # make sure the window is raised, but the script keeps going
         plt.show(block=False)
@@ -98,18 +101,32 @@ class custom_figure():
         # get copy of entire figure (everything inside fig.bbox) sans animated artist
         self.bg = self.fig.canvas.copy_from_bbox(self.fig.bbox)
         # draw the animated artist, this uses a cached renderer
-        self.ax1.draw_artist(self.ln)
+        self.ax1.draw_artist(self.ln1)
+        self.ax2.draw_artist(self.ln2)
         # show the result to the screen, this pushes the updated RGBA buffer from the
         # renderer to the GUI framework so you can see it
         self.fig.canvas.blit(self.fig.bbox)
 
     def update_figure(self, *, errors):
+        def central_moments(*, x, k):
+            return ((x-x.mean())**k).mean()
+        def get_distribution(*, x, mu, std):
+            return (1/std*(2*np.pi)**0.5) * np.exp(-0.5*((x-mu)/std)**2)
+        
+        errors_dist = np.array(errors)[-25:]
+        mean = errors_dist.mean()
+        std = central_moments(x=errors_dist, k=2)**0.5
+        skewness = central_moments(x=errors_dist, k=3)/(central_moments(x=errors_dist, k=2)**(0.5*3))
+        kurtosis = central_moments(x=errors_dist, k=4)/(central_moments(x=errors_dist, k=2)**(0.5*(4)))
+        dist = get_distribution(x=np.linspace(-50,350, 50),mu=mean, std=std)
 
         self.fig.canvas.restore_region(self.bg)
         # update the artist, neither the canvas state nor the screen have changed
-        self.ln.set_ydata(errors)
+        self.ln1.set_ydata(errors)
+        self.ln2.set_ydata(dist)
         # re-render the artist, updating the canvas state, but not the screen
-        self.ax1.draw_artist(self.ln)
+        self.ax1.draw_artist(self.ln1)
+        self.ax2.draw_artist(self.ln2)
         # copy the image to the GUI state, but screen might not be changed yet
         self.fig.canvas.blit(self.fig.bbox)
         # flush any pending GUI events, re-painting the screen if needed
@@ -117,9 +134,6 @@ class custom_figure():
         # you can put a pause in if you want to slow things down
         # plt.pause(.1)
         return True
-    
-def central_moments(*, k, errors):
-    return ((errors- errors.mean())**k).mean()
 
 
 def record_video(*, record_bool=True, plot_bool=True):
@@ -147,10 +161,7 @@ def record_video(*, record_bool=True, plot_bool=True):
 
         # cv2.imshow("Original", frame_source)
         frame = set_focus(frame=frame_source, width_corr=width_corr, height_corr=height_corr)
-        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-
-        # cv2.imshow("Focus", cv2.rectangle(frame_source.copy(), (width_corr[0], height_corr[0]), (width_corr[1], height_corr[1]), color=(255,0,0), thickness=2))
-    
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)    
 
         # Recording
         frames.append(frame)
@@ -161,19 +172,12 @@ def record_video(*, record_bool=True, plot_bool=True):
         error_frame, error = get_error_frame(frames=frames, kernel=kernel)
         errors.append(error)
 
-        if len(errors)==200 and plot_bool:
-            cmom_1 = np.array(errors)[-20:].mean()
-            cmom_2 = central_moments(k=2, errors=np.array(errors)[-20:])
-            cmom_3 = central_moments(k=3, errors=np.array(errors)[-20:])/(central_moments(k=2, errors=np.array(errors)[-20:])**(0.5*3))
-            cmom_4 = central_moments(k=4, errors=np.array(errors)[-20:])/(central_moments(k=2, errors=np.array(errors)[-20:])**(0.5*(4)))
-            render_text(frame=frame_source, text=cmom_1, position=(30,30))
-            render_text(frame=frame_source, text=cmom_2, position=(30,60))
-            render_text(frame=frame_source, text=cmom_3, position=(30,90))
-            render_text(frame=frame_source, text=cmom_4, position=(30,120))
-            cv2.imshow("Original", frame_source)
+        if len(errors)==100 and plot_bool:
+
             figure.update_figure(errors=errors)
             del errors[0]
-        # cv2.imshow('Movement', np.array(error_frame, dtype="uint8"))
+        render_text(frame=frame_source, text=error)
+        # cv2.imshow('Original', frame_source)
         
         color_code = int((round(now-start, 0)%30)/10)
         if glow_bool:
