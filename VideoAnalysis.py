@@ -27,12 +27,19 @@ os.makedirs(folder_path, exist_ok=True)
 
 
 
+<<<<<<< Updated upstream
 cap = cv2.VideoCapture(2) # for MacBook index 2
 # cap = cv2.VideoCapture(0, cv2.CAP_DSHOW) 
 # cap.set(cv2.CAP_PROP_FRAME_WIDTH , 800) 
 # cap.set(cv2.CAP_PROP_FRAME_HEIGHT , 600) 
 cap.set(cv2.CAP_PROP_FRAME_WIDTH , 640) 
 cap.set(cv2.CAP_PROP_FRAME_HEIGHT , 440) # +40, it's very strange but somehow that worked
+=======
+# cap = cv2.VideoCapture(2) # for MacBook index 2
+cap = cv2.VideoCapture(0, cv2.CAP_DSHOW) 
+cap.set(cv2.CAP_PROP_FRAME_WIDTH , 800) 
+cap.set(cv2.CAP_PROP_FRAME_HEIGHT , 600) 
+>>>>>>> Stashed changes
 
 
 cv2.namedWindow("Filter", cv2.WINDOW_NORMAL)
