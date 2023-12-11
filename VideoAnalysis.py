@@ -27,7 +27,8 @@ os.makedirs(folder_path, exist_ok=True)
 
 
 
-cap = cv2.VideoCapture(1, cv2.CAP_DSHOW) 
+cap = cv2.VideoCapture(2) # for MacBook index 2
+# cap = cv2.VideoCapture(0, cv2.CAP_DSHOW) 
 cap.set(cv2.CAP_PROP_FRAME_WIDTH , 800) 
 cap.set(cv2.CAP_PROP_FRAME_HEIGHT , 600) 
 
@@ -172,8 +173,16 @@ def record_video(*, record_bool=True, plot_bool=True):
         error_frame, error = get_error_frame(frames=frames, kernel=kernel)
         errors.append(error)
 
-        if len(errors)==100 and plot_bool:
-
+        if len(errors)==200 and plot_bool:
+            cmom_1 = np.array(errors)[-20:].mean()
+            cmom_2 = central_moments(k=2, errors=np.array(errors)[-20:])
+            cmom_3 = central_moments(k=3, errors=np.array(errors)[-20:])/(central_moments(k=2, errors=np.array(errors)[-20:])**(0.5*3))
+            cmom_4 = central_moments(k=4, errors=np.array(errors)[-20:])/(central_moments(k=2, errors=np.array(errors)[-20:])**(0.5*(4)))
+            render_text(frame=frame_source, text=cmom_1, position=(30,30))
+            render_text(frame=frame_source, text=cmom_2, position=(30,60))
+            render_text(frame=frame_source, text=cmom_3, position=(30,90))
+            render_text(frame=frame_source, text=cmom_4, position=(30,120))
+            cv2.imshow("Original", frame_source)
             figure.update_figure(errors=errors)
             del errors[0]
         render_text(frame=frame_source, text=error)
