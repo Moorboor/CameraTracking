@@ -29,10 +29,14 @@ os.makedirs(folder_path, exist_ok=True)
 
 cap = cv2.VideoCapture(2) # for MacBook index 2
 # cap = cv2.VideoCapture(0, cv2.CAP_DSHOW) 
-cap.set(cv2.CAP_PROP_FRAME_WIDTH , 800) 
-cap.set(cv2.CAP_PROP_FRAME_HEIGHT , 600) 
+# cap.set(cv2.CAP_PROP_FRAME_WIDTH , 800) 
+# cap.set(cv2.CAP_PROP_FRAME_HEIGHT , 600) 
+cap.set(cv2.CAP_PROP_FRAME_WIDTH , 640) 
+cap.set(cv2.CAP_PROP_FRAME_HEIGHT , 440) # +40, it's very strange but somehow that worked
 
 
+cv2.namedWindow("Filter", cv2.WINDOW_NORMAL)
+cv2.setWindowProperty("Filter", cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
 
 def set_focus(*, frame, width_corr, height_corr):
     if height_corr[1] == 0: height_corr[1] = frame.shape[0]
@@ -88,10 +92,13 @@ def get_error_frame(*, frames, kernel):
 class custom_figure():
     
     def __init__(self):
-        self.fig, (self.ax1, self.ax2) = plt.subplots(2, figsize=(1,1))
+        self.fig, (self.ax1, self.ax2) = plt.subplots(2, figsize=(4,1))
         colors = sns.color_palette("rocket", 3)[1:]
-        self.ax1.set_facecolor("#0F0F0F")
-        self.ax2.set_facecolor("#0F0F0F")
+        self.fig.patch.set_facecolor('#000000')
+        self.ax1.set_facecolor("#000000")
+        self.ax2.set_facecolor("#000000")
+        # Remove bars
+        plt.get_current_fig_manager().window.title("")
 
         (self.ln1,) = self.ax1.plot(range(100), np.linspace(0,150, 100), animated=True, c=colors[0])
         (self.ln2,) = self.ax2.plot(np.linspace(-50, 350, 50), np.linspace(0,0.35,50), animated=True, c=colors[1])
@@ -142,7 +149,7 @@ def record_video(*, record_bool=True, plot_bool=True):
     frames = []
     errors = []
     recording_buffer = []
-    width_corr, height_corr = (0, 800), (0, 600)
+    width_corr, height_corr = (0, 640), (0, 400)
     # width_corr, height_corr = (430, 480), (380, 390)
     glow_gradient = np.zeros(shape=(height_corr[1]-height_corr[0], width_corr[1]-width_corr[0]))
     i = 0
@@ -173,16 +180,7 @@ def record_video(*, record_bool=True, plot_bool=True):
         error_frame, error = get_error_frame(frames=frames, kernel=kernel)
         errors.append(error)
 
-        if len(errors)==200 and plot_bool:
-            cmom_1 = np.array(errors)[-20:].mean()
-            cmom_2 = central_moments(k=2, errors=np.array(errors)[-20:])
-            cmom_3 = central_moments(k=3, errors=np.array(errors)[-20:])/(central_moments(k=2, errors=np.array(errors)[-20:])**(0.5*3))
-            cmom_4 = central_moments(k=4, errors=np.array(errors)[-20:])/(central_moments(k=2, errors=np.array(errors)[-20:])**(0.5*(4)))
-            render_text(frame=frame_source, text=cmom_1, position=(30,30))
-            render_text(frame=frame_source, text=cmom_2, position=(30,60))
-            render_text(frame=frame_source, text=cmom_3, position=(30,90))
-            render_text(frame=frame_source, text=cmom_4, position=(30,120))
-            cv2.imshow("Original", frame_source)
+        if len(errors)==100 and plot_bool:
             figure.update_figure(errors=errors)
             del errors[0]
         render_text(frame=frame_source, text=error)
