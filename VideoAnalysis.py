@@ -6,6 +6,7 @@ import sys
 import time
 import matplotlib.pyplot as plt
 import seaborn as sns
+from tkinter import Tk
 
 
 utc_time = datetime.utcnow()
@@ -27,19 +28,10 @@ os.makedirs(folder_path, exist_ok=True)
 
 
 
-<<<<<<< Updated upstream
-cap = cv2.VideoCapture(2) # for MacBook index 2
-# cap = cv2.VideoCapture(0, cv2.CAP_DSHOW) 
-# cap.set(cv2.CAP_PROP_FRAME_WIDTH , 800) 
-# cap.set(cv2.CAP_PROP_FRAME_HEIGHT , 600) 
-cap.set(cv2.CAP_PROP_FRAME_WIDTH , 640) 
-cap.set(cv2.CAP_PROP_FRAME_HEIGHT , 440) # +40, it's very strange but somehow that worked
-=======
 # cap = cv2.VideoCapture(2) # for MacBook index 2
-cap = cv2.VideoCapture(0, cv2.CAP_DSHOW) 
+cap = cv2.VideoCapture(1, cv2.CAP_DSHOW) 
 cap.set(cv2.CAP_PROP_FRAME_WIDTH , 800) 
 cap.set(cv2.CAP_PROP_FRAME_HEIGHT , 600) 
->>>>>>> Stashed changes
 
 
 cv2.namedWindow("Filter", cv2.WINDOW_NORMAL)
@@ -99,28 +91,33 @@ def get_error_frame(*, frames, kernel):
 class custom_figure():
     
     def __init__(self):
-        self.fig, (self.ax1, self.ax2) = plt.subplots(2, figsize=(4,1))
+        plt.switch_backend('TkAgg')  # Use TkAgg backend (or choose another backend)
+        plt.rcParams['toolbar'] = 'None'
+        self.fig, (self.ax1, self.ax2) = plt.subplots(2, figsize=(8,8))
         colors = sns.color_palette("rocket", 3)[1:]
         self.fig.patch.set_facecolor('#000000')
-        self.ax1.set_facecolor("#000000")
-        self.ax2.set_facecolor("#000000")
+        self.ax1.set_facecolor('#000000')
+        self.ax2.set_facecolor('#000000')
+
+
         # Remove bars
-        plt.get_current_fig_manager().window.title("")
+        plt.get_current_fig_manager().window.attributes('-alpha', 0.3)
+        plt.get_current_fig_manager().window.overrideredirect(True)
+        # Remove figure Name
+        # plt.get_current_fig_manager().window.title("")
 
         (self.ln1,) = self.ax1.plot(range(100), np.linspace(0,150, 100), animated=True, c=colors[0])
-        (self.ln2,) = self.ax2.plot(np.linspace(-50, 350, 50), np.linspace(0,0.35,50), animated=True, c=colors[1])
+        (self.ln2,) = self.ax2.plot(np.linspace(-50, 350, 100), np.linspace(0,0.35,100), animated=True, c=colors[1])
 
-        # make sure the window is raised, but the script keeps going
         plt.show(block=False)
         plt.pause(0.1)
-        # get copy of entire figure (everything inside fig.bbox) sans animated artist
+        plt.get_current_fig_manager().window.state('zoomed')
         self.bg = self.fig.canvas.copy_from_bbox(self.fig.bbox)
-        # draw the animated artist, this uses a cached renderer
+
         self.ax1.draw_artist(self.ln1)
         self.ax2.draw_artist(self.ln2)
-        # show the result to the screen, this pushes the updated RGBA buffer from the
-        # renderer to the GUI framework so you can see it
         self.fig.canvas.blit(self.fig.bbox)
+
 
     def update_figure(self, *, errors):
         def central_moments(*, x, k):
@@ -133,7 +130,7 @@ class custom_figure():
         std = central_moments(x=errors_dist, k=2)**0.5
         skewness = central_moments(x=errors_dist, k=3)/(central_moments(x=errors_dist, k=2)**(0.5*3))
         kurtosis = central_moments(x=errors_dist, k=4)/(central_moments(x=errors_dist, k=2)**(0.5*(4)))
-        dist = get_distribution(x=np.linspace(-50,350, 50),mu=mean, std=std)
+        dist = get_distribution(x=np.linspace(-50,350, 100),mu=mean, std=std)
 
         self.fig.canvas.restore_region(self.bg)
         # update the artist, neither the canvas state nor the screen have changed
@@ -191,12 +188,10 @@ def record_video(*, record_bool=True, plot_bool=True):
             figure.update_figure(errors=errors)
             del errors[0]
         render_text(frame=frame_source, text=error)
-        # cv2.imshow('Original', frame_source)
         
         color_code = int((round(now-start, 0)%30)/10)
         if glow_bool:
             glow_gradient = new_glow_gradient(glow_gradient=glow_gradient, new_frame=error_frame)
-        # cv2.imshow("Glow", glow_gradient)
         
         color_glow = add_glow(frame=set_focus(frame=frame_source, width_corr=width_corr, height_corr=height_corr), color_code=color_code, glow_gradient=glow_gradient)
         cv2.imshow("Filter", color_glow)
@@ -219,6 +214,9 @@ def record_video(*, record_bool=True, plot_bool=True):
         # Quit
         if cv2.waitKey(25) & 0xFF == ord('q'):
             break 
+        # For instant light show
+        if len(errors)==10:
+            glow_bool = not(glow_bool)
         if cv2.waitKey(25) & 0xFF == ord('1'):
             glow_bool = not glow_bool
             print(f"Glow: {glow_bool}")
@@ -235,6 +233,8 @@ def record_video(*, record_bool=True, plot_bool=True):
     return n_saved  
 
 if __name__ == "__main__":
+    root = Tk()
+    root.withdraw()  # Hide the dummy root window
     record_bool = True if str(sys.argv[1]) == "-r" else False
     plot_bool = True if str(sys.argv[2]) == "-p" else False
     n_saved = record_video(record_bool=record_bool)
