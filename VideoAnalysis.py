@@ -91,7 +91,6 @@ def get_error_frame(*, frames, kernel):
 class custom_figure():
     
     def __init__(self):
-        plt.switch_backend('TkAgg')  # Use TkAgg backend (or choose another backend)
         plt.rcParams['toolbar'] = 'None'
         self.fig, (self.ax1, self.ax2) = plt.subplots(2, figsize=(8,8))
         colors = sns.color_palette("rocket", 3)[1:]
@@ -108,6 +107,7 @@ class custom_figure():
 
         (self.ln1,) = self.ax1.plot(range(100), np.linspace(0,150, 100), animated=True, c=colors[0])
         (self.ln2,) = self.ax2.plot(np.linspace(-50, 350, 100), np.linspace(0,0.35,100), animated=True, c=colors[1])
+        self.ax2.fill_between(np.linspace(-50, 350, 100), 0, 0, color='blue', label="filling")
 
         plt.show(block=False)
         plt.pause(0.1)
@@ -133,18 +133,19 @@ class custom_figure():
         dist = get_distribution(x=np.linspace(-50,350, 100),mu=mean, std=std)
 
         self.fig.canvas.restore_region(self.bg)
-        # update the artist, neither the canvas state nor the screen have changed
+        
         self.ln1.set_ydata(errors)
         self.ln2.set_ydata(dist)
+
         # re-render the artist, updating the canvas state, but not the screen
+        path = self.ax2.fill_between(np.linspace(-50, 350, 100), 0, dist, label="filling", alpha=0.8)
+        self.ax2.draw_artist(path)
         self.ax1.draw_artist(self.ln1)
         self.ax2.draw_artist(self.ln2)
-        # copy the image to the GUI state, but screen might not be changed yet
+
         self.fig.canvas.blit(self.fig.bbox)
-        # flush any pending GUI events, re-painting the screen if needed
         self.fig.canvas.flush_events()
-        # you can put a pause in if you want to slow things down
-        # plt.pause(.1)
+
         return True
 
 
