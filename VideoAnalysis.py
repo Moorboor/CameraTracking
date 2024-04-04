@@ -29,7 +29,7 @@ os.makedirs(folder_path, exist_ok=True)
 
 
 # cap = cv2.VideoCapture(2) # for MacBook index 2
-cap = cv2.VideoCapture(1, cv2.CAP_DSHOW) 
+cap = cv2.VideoCapture(0, cv2.CAP_DSHOW) 
 cap.set(cv2.CAP_PROP_FRAME_WIDTH , 800) 
 cap.set(cv2.CAP_PROP_FRAME_HEIGHT , 600) 
 
@@ -38,8 +38,10 @@ cv2.namedWindow("Filter", cv2.WINDOW_NORMAL)
 cv2.setWindowProperty("Filter", cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
 
 def set_focus(*, frame, width_corr, height_corr):
-    if height_corr[1] == 0: height_corr[1] = frame.shape[0]
-    if width_corr[1] == 0: width_corr[1] = frame.shape[1]
+    if height_corr[1] == 0: 
+        height_corr[1] = frame.shape[0]
+    if width_corr[1] == 0: 
+        width_corr[1] = frame.shape[1]
     return frame[height_corr[0]:height_corr[1], width_corr[0]:width_corr[1]]
 
 def render_text(*, frame, text=0., position=(30,30)):
@@ -64,7 +66,7 @@ def save_video(*, recording):
 
 def new_glow_gradient(*, glow_gradient, new_frame):
     glow_gradient = np.array(glow_gradient, dtype="float")
-    glow_gradient *= .9
+    glow_gradient *= .5
     glow_gradient += np.array(new_frame, dtype="float")
     return np.array(glow_gradient, dtype="uint8")
 
@@ -88,9 +90,12 @@ def get_error_frame(*, frames, kernel):
     error = (error_frame**2).mean()
     return error_frame, error
 
+
 class custom_figure():
     
     def __init__(self):
+        root = Tk()
+        root.withdraw()  # Hide the dummy root window
         plt.rcParams['toolbar'] = 'None'
         self.fig, (self.ax1, self.ax2) = plt.subplots(2, figsize=(8,8))
         colors = sns.color_palette("rocket", 3)[1:]
@@ -120,8 +125,11 @@ class custom_figure():
 
 
     def update_figure(self, *, errors):
+
+
         def central_moments(*, x, k):
             return ((x-x.mean())**k).mean()
+        
         def get_distribution(*, x, mu, std):
             return (1/std*(2*np.pi)**0.5) * np.exp(-0.5*((x-mu)/std)**2)
         
@@ -151,51 +159,72 @@ class custom_figure():
 
 def record_video(*, record_bool=True, plot_bool=True):
 
+
     frames = []
     errors = []
-    recording_buffer = []
+    kernel = (np.ones((10,10))/100)
     width_corr, height_corr = (0, 640), (0, 400)
     # width_corr, height_corr = (430, 480), (380, 390)
+
+    
+    glow_bool = False
     glow_gradient = np.zeros(shape=(height_corr[1]-height_corr[0], width_corr[1]-width_corr[0]))
+
+    
     i = 0
     n_saved = 0
-    glow_bool = False
+    recording_buffer = []
 
-    kernel = (np.ones((10,10))/100)
+    
     start = time.time()
-    if plot_bool == True: figure = custom_figure()
+
+
+    if plot_bool == True: 
+        figure = custom_figure()
     
     while True:
 
-        now = time.time()
+
         ret, frame_source = cap.read()
         if not ret:
+            print("Error: cap not found")
             break
 
-        # cv2.imshow("Original", frame_source)
         frame = set_focus(frame=frame_source, width_corr=width_corr, height_corr=height_corr)
-        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)    
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)  
 
-        # Recording
+
         frames.append(frame)
-        if len(frames) > 2: del frames[0]
-        recording_buffer.append(frame_source)
-        if len(recording_buffer) > 20: del recording_buffer[0]
-        
+        if len(frames) > 2: 
+            del frames[0]
         error_frame, error = get_error_frame(frames=frames, kernel=kernel)
         errors.append(error)
+        render_text(frame=frame_source, text=error)
 
-        if len(errors)==100 and plot_bool:
+
+        
+        recording_buffer.append(frame_source)
+        if len(recording_buffer) > 20: 
+            del recording_buffer[0]
+
+
+        if plot_bool and len(errors)==100:
             figure.update_figure(errors=errors)
             del errors[0]
-        render_text(frame=frame_source, text=error)
         
-        color_code = int((round(now-start, 0)%30)/10)
+
+
         if glow_bool:
             glow_gradient = new_glow_gradient(glow_gradient=glow_gradient, new_frame=error_frame)
         
-        color_glow = add_glow(frame=set_focus(frame=frame_source, width_corr=width_corr, height_corr=height_corr), color_code=color_code, glow_gradient=glow_gradient)
+        now = time.time()
+        color_code = int((round(now-start, 0)%30)/10)
+        color_glow = add_glow(frame=set_focus(frame=frame_source, width_corr=width_corr, height_corr=height_corr), 
+                              color_code=color_code, 
+                              glow_gradient=glow_gradient)
         cv2.imshow("Filter", color_glow)
+
+
 
         if error > 10 or i != 0:
             i += 1
@@ -204,6 +233,7 @@ def record_video(*, record_bool=True, plot_bool=True):
             recording.append(frame_source)
 
             mean_error = np.array(errors[-10:]).mean()
+
             if i > 100 and mean_error < 3:
                 i = 0
                 if record_bool:
@@ -212,13 +242,14 @@ def record_video(*, record_bool=True, plot_bool=True):
                     print(f"No.{n_saved} video saved!")
 
 
-        # Quit
-        if cv2.waitKey(25) & 0xFF == ord('q'):
+   
+        if cv2.waitKey(1) & 0xFF == ord('q'):
             break 
-        # For instant light show
+
         if len(errors)==10:
             glow_bool = not(glow_bool)
-        if cv2.waitKey(25) & 0xFF == ord('1'):
+
+        if cv2.waitKey(1) & 0xFF == ord('1'):
             glow_bool = not glow_bool
             print(f"Glow: {glow_bool}")
             glow_gradient = np.zeros(shape=glow_gradient.shape)
@@ -233,11 +264,12 @@ def record_video(*, record_bool=True, plot_bool=True):
     
     return n_saved  
 
+
+
 if __name__ == "__main__":
-    root = Tk()
-    root.withdraw()  # Hide the dummy root window
+
     record_bool = True if str(sys.argv[1]) == "-r" else False
     plot_bool = True if str(sys.argv[2]) == "-p" else False
-    n_saved = record_video(record_bool=record_bool)
+    n_saved = record_video(record_bool=record_bool, plot_bool=plot_bool)
 
     print(f"Total {n_saved} videos saved!")
