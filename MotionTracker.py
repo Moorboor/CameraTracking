@@ -7,7 +7,7 @@ from tkinter import Tk
 import matplotlib.pyplot as plt
 from datetime import datetime, timedelta
 import os 
-
+import pyautogui
 
 class MotionTracker():
     '''
@@ -53,7 +53,15 @@ class MotionTracker():
             del self.frames[0]
 
         return self.get_frame_diff(frames=self.frames)  
-
+    
+    def render_text(self, *, frame, text="", position=(30,30)):
+        text = f"{text:.0f}"
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        font_scale = 1
+        font_color = (255, 255, 255) 
+        font_thickness = 2
+        cv2.putText(frame, text, position, font, font_scale, font_color, font_thickness)
+        
 
 
 
@@ -132,7 +140,6 @@ class VideoRecorder():
 
 
 
-
 class PartyGlow():
 
     '''
@@ -175,6 +182,7 @@ class PartyGlow():
         party_glow = np.array(party_glow, dtype="float")
         frame = np.array(frame, dtype="float")
         return np.array(frame + party_glow, dtype="uint8")
+
 
 
 class TimeLapse():
@@ -336,68 +344,68 @@ class BackgroundVideo():
     
 
 
+class Camera():
+
+    def __init__(self, cam):
+
+        self.cam = cam
+
+        if cam:
+            # self.cap = cv2.VideoCapture(2) # Laptop 
+            self.cap = cv2.VideoCapture(0, cv2.CAP_DSHOW) 
+            # self.cap.set(cv2.CAP_PROP_EXPOSURE, 10) 
+            # self.cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 1) # auto mode
+        
+            self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+            self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+
+        
+            # cv2.namedWindow("Filter", cv2.WINDOW_NORMAL)
+            # cv2.setWindowProperty("Filter", cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
+
+    def read(self):
+        ret, src_frame = self.cap.read() if self.cam else (True, np.array(pyautogui.screenshot()))
+        if not ret:
+            print("Error: cap not found")
+            self.quit()
+        return src_frame
+        
+    
+    def quit(self):
+        if self.cam:
+            self.cap.release()
+            cv2.destroyAllWindows()
+        quit()
 
 
 
 
 class MotionTrackerManager():
 
-    def __init__(self, *, rec=False, party=False, fig=False, bgv=False, t_lapse=False):
+    def __init__(self, *, mtracker=True, rec=False, party=False, fig=False, bgv=False, t_lapse=False, cam=True):
 
-        self.width_corr, self.height_corr = [0, 0], [150, 250] # width, height
+        self.mtracker, self.rec, self.party, self.fig, self.bgv, self.t_lapse, self.cam = mtracker, rec, party, fig, bgv, t_lapse, cam
+        self.width_corr, self.height_corr = [0, 500], [0, 500] # [150, 250] # width, height
 
-        self.rec, self.party, self.fig, self.bgv, self.t_lapse = rec, party, fig, bgv, t_lapse
-
+        self.camera = Camera(cam=self.cam)    
+        if mtracker: self.motionTracker = MotionTracker(self.width_corr, self.height_corr)
         if rec: self.videoRecorder = VideoRecorder()
         if party: self.partyGlow = PartyGlow()
         if fig: self.figure = Figure() 
-        if bgv: 
-            self.backgroundVideo = BackgroundVideo()
-            self.b_video = self.backgroundVideo.load_video()
+        if bgv: self.backgroundVideo = BackgroundVideo() # self.b_video = self.backgroundVideo.load_video()
         if t_lapse: self.timelapse = TimeLapse()
 
-        self.motionTracker = MotionTracker(self.width_corr, self.height_corr)
-    
-
-
-        # self.cap = cv2.VideoCapture(2) # Laptop 
-        self.cap = cv2.VideoCapture(0, cv2.CAP_DSHOW) 
-        # self.cap.set(cv2.CAP_PROP_EXPOSURE, 10) 
-        # self.cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 1) # auto mode
-        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
-
-        
-        # cv2.namedWindow("Filter", cv2.WINDOW_NORMAL)
-        # cv2.setWindowProperty("Filter", cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
-
-
-    def render_text(self, *, frame, text="", position=(30,30)):
-        text = f"{text:.0f}"
-        font = cv2.FONT_HERSHEY_SIMPLEX
-        font_scale = 1
-        font_color = (255, 255, 255) 
-        font_thickness = 2
-        cv2.putText(frame, text, position, font, font_scale, font_color, font_thickness)
-        return 
-
-    def quit(self):
-        self.cap.release()
-        self.cv2.destroyAllWindows()
-        if self.videoRecorder != None:
-            self.videoRecorder.display_n_saved()
     
     
     def run(self):
     
         while True:
-            ret, src_frame = self.cap.read()
-            if not ret:
-                print("Error: cap not found")
-                break
-            
-            frame = self.motionTracker.preprocess_frame(frame=src_frame)
-            frame_diff, diff = self.motionTracker.track_motion(frame=frame)
+
+            src_frame = self.camera.read()
+
+            if self.mtracker:
+                frame = self.motionTracker.preprocess_frame(frame=src_frame)
+                frame_diff, diff = self.motionTracker.track_motion(frame=frame)
             if self.t_lapse:
                 self.timelapse.check(frame=src_frame)
             if self.rec:
@@ -417,18 +425,13 @@ class MotionTrackerManager():
                     frame = np.array(frame, dtype="uint8")
 
             debug_frame = src_frame.copy()
-            # cv2.rectangle(debug_frame, (self.width_corr[0], self.height_corr[0]), (self.width_corr[1], self.height_corr[1]), (0,255,0))
-            # self.render_text(frame=debug_frame, text=diff)
-            # cv2.imshow("Source Frame", debug_frame)
-            # cv2.imshow("Filter", frame_diff)
-
-
-            
-
+            cv2.rectangle(debug_frame, (self.width_corr[0], self.height_corr[0]), (self.width_corr[1], self.height_corr[1]), (0,255,0))
+            cv2.imshow("Source Frame", debug_frame)
+            cv2.imshow("Filter", frame_diff)
 
     
             if cv2.waitKey(1) & 0xFF == ord("q"):
-                self.quit() 
+                self.camera.quit() 
             if cv2.waitKey(1) & 0xFF == ord("1"):
                 self.partyGlow = PartyGlow()
                 self.partyGlow.init_frame_glow(frame=frame)
@@ -441,7 +444,7 @@ if __name__ == "__main__":
     party = False
     fig = False
     bgv = False
-    t_lapse = True
+    t_lapse = False
     motionTrackerManager = MotionTrackerManager(
                                                 rec=rec,
                                                 party=party,
