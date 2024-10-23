@@ -97,7 +97,7 @@ class custom_figure():
         root = Tk()
         root.withdraw()  # Hide the dummy root window
         plt.rcParams['toolbar'] = 'None'
-        self.fig, (self.ax1, self.ax2) = plt.subplots(2, figsize=(8,8))
+        self.fig, (self.ax1, self.ax2) = plt.subplots(2, figsize=(16,9))
         colors = sns.color_palette("rocket", 3)[1:]
         self.fig.patch.set_facecolor('#000000')
         self.ax1.set_facecolor('#000000')
@@ -136,8 +136,8 @@ class custom_figure():
         errors_dist = np.array(errors)[-25:]
         mean = errors_dist.mean()
         std = central_moments(x=errors_dist, k=2)**0.5
-        skewness = central_moments(x=errors_dist, k=3)/(central_moments(x=errors_dist, k=2)**(0.5*3))
-        kurtosis = central_moments(x=errors_dist, k=4)/(central_moments(x=errors_dist, k=2)**(0.5*(4)))
+        # skewness = central_moments(x=errors_dist, k=3)/(central_moments(x=errors_dist, k=2)**(0.5*3))
+        # kurtosis = central_moments(x=errors_dist, k=4)/(central_moments(x=errors_dist, k=2)**(0.5*(4)))
         dist = get_distribution(x=np.linspace(-50,350, 100),mu=mean, std=std)
 
         self.fig.canvas.restore_region(self.bg)
