@@ -18,9 +18,10 @@ class MotionTracker():
 
     '''
     def __init__(self, width_corr, height_corr):
+        
+        self.width_corr, self.height_corr = width_corr, height_corr
         self.frames = []
         self.frame_diffs = []
-        self.width_corr, self.height_corr = width_corr, height_corr
         self.kernel = (np.ones((10,10))/100)
 
     def set_focus(self, *, frame):
@@ -32,12 +33,15 @@ class MotionTracker():
 
 
     def get_frame_diff(self, *, frames):
-        mean_frame1 = np.array(frames[:1])
-        mean_frame2 = np.array(frames[1:])
-        frame_diff = mean_frame1.mean(axis=0) - mean_frame2.mean(axis=0)
-        frame_diff = cv2.filter2D(src=frame_diff, 
-                                   ddepth=-1, 
-                                   kernel=self.kernel) 
+
+        curr_frame = np.array(frames[-1], dtype=float)
+        last_frame = np.array(frames[0], dtype=float)
+        
+        frame_diff = last_frame - curr_frame
+
+        # frame_diff = cv2.filter2D(src=frame_diff, 
+        #                            ddepth=-1, 
+        #                            kernel=self.kernel) 
         frame_diff = np.where(frame_diff<5, 0, frame_diff)
         diff = (frame_diff**2).mean()
 
@@ -440,7 +444,7 @@ class MotionTrackerManager():
 
             debug_frame = src_frame.copy()
             cv2.rectangle(debug_frame, (self.width_corr[0], self.height_corr[0]), (self.width_corr[1], self.height_corr[1]), (0,255,0))
-            cv2.imshow("Source Frame", debug_frame)
+            # cv2.imshow("Source Frame", debug_frame)
             cv2.imshow("Filter", frame_diff)
 
     
