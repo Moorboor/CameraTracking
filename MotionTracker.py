@@ -42,7 +42,8 @@ class MotionTracker():
         # frame_diff = cv2.filter2D(src=frame_diff, 
         #                            ddepth=-1, 
         #                            kernel=self.kernel) 
-        frame_diff = np.where(frame_diff<5, 0, frame_diff)
+        ret, frame_diff = cv2.threshold(frame_diff, 5, 255, cv2.THRESH_TOZERO)
+        # frame_diff = np.where(frame_diff<5, 0, frame_diff)
         diff = (frame_diff**2).mean()
 
         return frame_diff, diff
@@ -388,22 +389,37 @@ class Trajectory():
 
     def __init__(self, n_points=10):
         self.n_points = n_points
-        self.trajectory = []
+        self.trajectory_list = []
+    
+    def get_image_moments(self, *, frame):
+        _, frame_mask = cv2.threshold(frame, 0, 255, 0)
+        moments = cv2.moments(frame_mask)
+        x_mean = moments["m10"]/(moments["m00"]+1e-06)
+        y_mean = moments["m01"]/(moments["m00"]+1e-06)
 
-    def get_trajectory(self, *, frame):
+        self.trajectory_list.append([int(x_mean), int(y_mean)])
 
+        if len(self.trajectory_list) > self.n_points:
+            del self.trajectory_list[0]
         
-        if len(self.trajectory) > self.n_points:
-            del self.trajectory[0]
-
+        frame_mask = np.array(frame_mask, dtype="uint8")
+        frame_mask = cv2.cvtColor(frame_mask, cv2.COLOR_GRAY2RGB)
+        
+        frame_mask = cv2.rectangle(frame_mask, (int(x_mean), int(y_mean)), (int(x_mean)+10, int(y_mean)+10), (0,255,0), thickness=10)
+        return frame_mask
+    
+    # def get_trajectory(self):
+    #     if len(self.trajectory_list) > self.n_points:
+    #         del self.trajectory_list[0]
+        
 
 
 class MotionTrackerManager():
 
-    def __init__(self, *, mtracker=True, rec=False, party=False, fig=False, bgv=False, t_lapse=False, cam=True):
+    def __init__(self, *, mtracker=True, rec=False, party=False, fig=False, bgv=False, t_lapse=False, cam=True, trajec=True):
 
-        self.mtracker, self.rec, self.party, self.fig, self.bgv, self.t_lapse, self.cam = mtracker, rec, party, fig, bgv, t_lapse, cam
-        self.width_corr, self.height_corr = [0, 500], [0, 500] # [150, 250] # width, height
+        self.mtracker, self.rec, self.party, self.fig, self.bgv, self.t_lapse, self.cam, self.trajec = mtracker, rec, party, fig, bgv, t_lapse, cam, trajec
+        self.width_corr, self.height_corr = [0, 0], [0, 0] # [150, 250] # width, height
 
         self.camera = Camera(cam=self.cam)    
         if mtracker: self.motionTracker = MotionTracker(self.width_corr, self.height_corr)
@@ -412,6 +428,7 @@ class MotionTrackerManager():
         if fig: self.figure = Figure() 
         if bgv: self.backgroundVideo = BackgroundVideo() # self.b_video = self.backgroundVideo.load_video()
         if t_lapse: self.timelapse = TimeLapse()
+        if trajec: self.trajectory = Trajectory()
 
     
     
@@ -428,6 +445,8 @@ class MotionTrackerManager():
                 self.timelapse.check(frame=src_frame)
             if self.rec:
                 self.videoRecorder.record_video(frame=src_frame, diff=diff)
+            if self.trajec:
+                frame_mask = self.trajectory.get_image_moments(frame=frame_diff)
             if self.fig:
                 self.figure.update_figure(diff=diff)
             if self.party:
@@ -442,10 +461,11 @@ class MotionTrackerManager():
                     frame = np.where(frame>255, 255, frame)
                     frame = np.array(frame, dtype="uint8")
 
-            debug_frame = src_frame.copy()
-            cv2.rectangle(debug_frame, (self.width_corr[0], self.height_corr[0]), (self.width_corr[1], self.height_corr[1]), (0,255,0))
+            # debug_frame = src_frame.copy()
+            # cv2.rectangle(debug_frame, (self.width_corr[0], self.height_corr[0]), (self.width_corr[1], self.height_corr[1]), (0,255,0))
             # cv2.imshow("Source Frame", debug_frame)
-            cv2.imshow("Filter", frame_diff)
+
+            cv2.imshow("Filter", frame_mask)
 
     
             if cv2.waitKey(1) & 0xFF == ord("q"):
