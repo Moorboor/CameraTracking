@@ -9,6 +9,8 @@ from datetime import datetime, timedelta
 import os 
 import pyautogui
 
+
+
 class MotionTracker():
     '''
     Receives the most recent frame.
@@ -62,7 +64,6 @@ class MotionTracker():
         font_thickness = 2
         cv2.putText(frame, text, position, font, font_scale, font_color, font_thickness)
         
-
 
 
 class VideoRecorder():
@@ -377,6 +378,19 @@ class Camera():
             cv2.destroyAllWindows()
         quit()
 
+
+
+class Trajectory():
+
+    def __init__(self, n_points=10):
+        self.n_points = n_points
+        self.trajectory = []
+
+    def get_trajectory(self, *, frame):
+
+        
+        if len(self.trajectory) > self.n_points:
+            del self.trajectory[0]
 
 
 
