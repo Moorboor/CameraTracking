@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from datetime import datetime, timedelta
 import os 
 import pyautogui
-
+# from picamera2 import Picamera2
 
 
 class MotionTracker():
@@ -350,25 +350,35 @@ class BackgroundVideo():
 
 class Camera():
 
-    def __init__(self, cam):
+    def __init__(self, cam, pi):
 
-        self.cam = cam
-
-        if cam:
-            # self.cap = cv2.VideoCapture(2) # Laptop 
-            self.cap = cv2.VideoCapture(0, cv2.CAP_DSHOW) 
-            # self.cap.set(cv2.CAP_PROP_EXPOSURE, 10) 
-            # self.cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 1) # auto mode
+        self.cam, self.pi = cam, pi
         
-            self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-            self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
 
+        if self.cam:
+            if self.pi:
+                self.cap = Picamera2()
+                self.cap.start()
+            else:
+                self.cap = cv2.VideoCapture(0) # Laptop 
+                # self.cap = cv2.VideoCapture(0, cv2.CAP_DSHOW) 
+                # self.cap.set(cv2.CAP_PROP_EXPOSURE, 10) 
+                # self.cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 1) # auto mode
+            
+                #self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+                #self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+
+            
+                # cv2.namedWindow("Filter", cv2.WINDOW_NORMAL)
+                # cv2.setWindowProperty("Filter", cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
         
-            # cv2.namedWindow("Filter", cv2.WINDOW_NORMAL)
-            # cv2.setWindowProperty("Filter", cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
 
     def read(self):
-        ret, src_frame = self.cap.read() if self.cam else (True, np.array(pyautogui.screenshot()))
+        if self.cam:
+            ret, src_frame = (True, self.cap.capture_array()) if self.pi else self.cap.read()
+        else:
+            ret, src_frame = (True, pyautogui.screenshot())
+        
         if not ret:
             print("Error: cap not found")
             self.quit()
@@ -390,7 +400,7 @@ class Trajectory():
         self.trajectory_list = []
     
     def get_image_moments(self, *, frame):
-        _, frame_mask = cv2.threshold(frame, 0, 255, 0)
+        _, frame_mask = cv2.threshold(frame, 70, 255, 0)
         moments = cv2.moments(frame_mask)
         x_mean = moments["m10"]/(moments["m00"]+1e-06)
         y_mean = moments["m01"]/(moments["m00"]+1e-06)
@@ -404,12 +414,12 @@ class Trajectory():
 
 class MotionTrackerManager():
 
-    def __init__(self, *, mtracker=True, rec=False, party=False, fig=False, bgv=False, t_lapse=False, cam=True, trajec=True):
+    def __init__(self, *, mtracker=True, rec=False, party=False, fig=False, bgv=False, t_lapse=False, cam=True, trajec=True, pi=True):
 
-        self.mtracker, self.rec, self.party, self.fig, self.bgv, self.t_lapse, self.cam, self.trajec = mtracker, rec, party, fig, bgv, t_lapse, cam, trajec
+        self.mtracker, self.rec, self.party, self.fig, self.bgv, self.t_lapse, self.cam, self.trajec, self.pi = mtracker, rec, party, fig, bgv, t_lapse, cam, trajec, pi
         self.width_corr, self.height_corr = [0, 0], [0, 0] # [150, 250] # width, height
 
-        self.camera = Camera(cam=self.cam)    
+        self.camera = Camera(cam=self.cam, pi=self.pi)    
         if mtracker: self.motionTracker = MotionTracker(self.width_corr, self.height_corr)
         if rec: self.videoRecorder = VideoRecorder()
         if party: self.partyGlow = PartyGlow()
@@ -427,7 +437,7 @@ class MotionTrackerManager():
             src_frame = self.camera.read()
 
             if self.mtracker:
-                frame = self.motionTracker.preprocess_frame(frame=src_frame)
+                frame = self.motionTracker.preprocess_frame(frame=src_frame.copy())
                 frame_diff, diff = self.motionTracker.track_motion(frame=frame)
             if self.t_lapse:
                 self.timelapse.check(frame=src_frame)
@@ -449,10 +459,12 @@ class MotionTrackerManager():
                     frame = np.where(frame>255, 255, frame)
                     frame = np.array(frame, dtype="uint8")
 
-            # debug_frame = src_frame.copy()
+
+            cv2.rectangle(src_frame, (int(self.trajectory.trajectory_list[-1][0]), int(self.trajectory.trajectory_list[-1][1])), (int(self.trajectory.trajectory_list[-1][0])+10, int(self.trajectory.trajectory_list[-1][1])+10), (0,255,0), thickness=10)
+
             # cv2.rectangle(debug_frame, (self.width_corr[0], self.height_corr[0]), (self.width_corr[1], self.height_corr[1]), (0,255,0))
             # cv2.imshow("Source Frame", debug_frame)
-            # cv2.imshow("Filter", frame_mask)
+            cv2.imshow("Filter", frame_diff)
 
             if cv2.waitKey(1) & 0xFF == ord("q"):
                 self.camera.quit() 
