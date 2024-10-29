@@ -38,12 +38,10 @@ class MotionTracker():
         last_frame = np.array(frames[0], dtype=float)
         
         frame_diff = last_frame - curr_frame
-
         # frame_diff = cv2.filter2D(src=frame_diff, 
         #                            ddepth=-1, 
         #                            kernel=self.kernel) 
-        ret, frame_diff = cv2.threshold(frame_diff, 5, 255, cv2.THRESH_TOZERO)
-        # frame_diff = np.where(frame_diff<5, 0, frame_diff)
+        _, frame_diff = cv2.threshold(frame_diff, 5, 255, cv2.THRESH_TOZERO)
         diff = (frame_diff**2).mean()
 
         return frame_diff, diff
@@ -401,17 +399,7 @@ class Trajectory():
 
         if len(self.trajectory_list) > self.n_points:
             del self.trajectory_list[0]
-        
-        frame_mask = np.array(frame_mask, dtype="uint8")
-        frame_mask = cv2.cvtColor(frame_mask, cv2.COLOR_GRAY2RGB)
-        
-        frame_mask = cv2.rectangle(frame_mask, (int(x_mean), int(y_mean)), (int(x_mean)+10, int(y_mean)+10), (0,255,0), thickness=10)
-        return frame_mask
     
-    # def get_trajectory(self):
-    #     if len(self.trajectory_list) > self.n_points:
-    #         del self.trajectory_list[0]
-        
 
 
 class MotionTrackerManager():
@@ -446,7 +434,7 @@ class MotionTrackerManager():
             if self.rec:
                 self.videoRecorder.record_video(frame=src_frame, diff=diff)
             if self.trajec:
-                frame_mask = self.trajectory.get_image_moments(frame=frame_diff)
+                self.trajectory.get_image_moments(frame=frame_diff)
             if self.fig:
                 self.figure.update_figure(diff=diff)
             if self.party:
@@ -464,10 +452,8 @@ class MotionTrackerManager():
             # debug_frame = src_frame.copy()
             # cv2.rectangle(debug_frame, (self.width_corr[0], self.height_corr[0]), (self.width_corr[1], self.height_corr[1]), (0,255,0))
             # cv2.imshow("Source Frame", debug_frame)
+            # cv2.imshow("Filter", frame_mask)
 
-            cv2.imshow("Filter", frame_mask)
-
-    
             if cv2.waitKey(1) & 0xFF == ord("q"):
                 self.camera.quit() 
             if cv2.waitKey(1) & 0xFF == ord("1"):
@@ -475,18 +461,7 @@ class MotionTrackerManager():
                 self.partyGlow.init_frame_glow(frame=frame)
                 self.party = not(self.party)
                 
-            
 
 if __name__ == "__main__":
-    rec = True if str(sys.argv[1]) == "-r" else False
-    party = False
-    fig = False
-    bgv = False
-    t_lapse = False
-    motionTrackerManager = MotionTrackerManager(
-                                                rec=rec,
-                                                party=party,
-                                                fig=fig, 
-                                                bgv=bgv,
-                                                t_lapse=t_lapse)
+    motionTrackerManager = MotionTrackerManager()
     motionTrackerManager.run()
