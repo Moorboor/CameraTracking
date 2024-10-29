@@ -353,11 +353,13 @@ class Camera():
     def __init__(self, cam, pi):
 
         self.cam, self.pi = cam, pi
-        
+        self.width, self.height = 1280, 720
 
         if self.cam:
             if self.pi:
                 self.cap = Picamera2()
+                video_config = self.cap.create_video_configuration(main={"size": (self.width, self.height), "format": "BGR888"})
+                self.cap.configure(video_config)
                 self.cap.start()
             else:
                 self.cap = cv2.VideoCapture(0) # Laptop 
@@ -365,8 +367,8 @@ class Camera():
                 # self.cap.set(cv2.CAP_PROP_EXPOSURE, 10) 
                 # self.cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 1) # auto mode
             
-                #self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-                #self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+                #self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
+                #self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
 
             
                 # cv2.namedWindow("Filter", cv2.WINDOW_NORMAL)
