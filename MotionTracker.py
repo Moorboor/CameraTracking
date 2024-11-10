@@ -345,6 +345,7 @@ class ServoMotor():
                 self.acceleration += 2
 
             if (abs(self.acceleration)>10) and (self.curr_angle<self.boundaries):
+                print(self.acceleration)
                 self.servo.angle += self.acceleration
                 self.curr_angle += self.acceleration
                 self.acceleration = 0
