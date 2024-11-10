@@ -2,16 +2,16 @@ import cv2
 import numpy as np
 import time
 import sys
-import seaborn as sns
-from tkinter import Tk
-import matplotlib.pyplot as plt
+# import seaborn as sns
+# from tkinter import Tk
+# import matplotlib.pyplot as plt
 from datetime import datetime, timedelta
 import os 
-import pyautogui
-# from gpiozero import AngularServo
-# import RPi.GPIO as GPIO
-# from RPLCD import CharLCD
-# from picamera2 import Picamera2
+# import pyautogui
+from gpiozero import AngularServo
+import RPi.GPIO as GPIO
+from RPLCD import CharLCD
+from picamera2 import Picamera2
 
 
 class MotionTracker():
@@ -329,27 +329,36 @@ class ServoMotor():
         def __init__(self, resolution):
             self.resolution = [r/2 for r in resolution]
             self.boundaries = 90
+            self.threshold = 100
+            
             self.curr_angle = 0
+            self.acceleration = 0
+
             self.servo = AngularServo(18, min_pulse_width=0.0006, max_pulse_width=0.0023)
 
         def move(self, coor):
-            diff = [c - r for c, r in zip(coor, self.resolution)]
+            diff = [r-c for c, r in zip(coor, self.resolution)]
+
+            if (diff[0]>self.threshold) and (self.curr_angle>-self.boundaries):
+                self.acceleration -= 2
+            elif (diff[0]<-self.threshold) and (self.curr_angle<self.boundaries):
+                self.acceleration += 2
+
+            if (abs(self.acceleration)>10) and (self.curr_angle<self.boundaries):
+                self.servo.angle += self.acceleration
+                self.curr_angle += self.acceleration
+                self.acceleration = 0
             
-            if (diff[0]>100) and (self.curr_angle<self.boundaries):
-                self.curr_angle += 10
-                self.servo.angle(self.curr_angle)
-            elif (diff[0]<-100) and (self.curr_angle>self.boundaries):
-                self.curr_angle -= 10
-                self.servo.angle(self.curr_angle)
 
 class LCD():
 
     def __init__(self):
         self.lcd = CharLCD(cols=16, rows=2, pin_rs=37, pin_e=35, pins_data=[33, 31, 29, 23], numbering_mode=GPIO.BOARD)
+        self.lcd.clear()
     
     def update(self, text):
-            self.lcd.write_string(f"{text}")
-            print(text)
+        self.lcd.clear()
+        self.lcd.write_string(f"Current angle: {text}")
 
 
 class BackgroundVideo():
@@ -447,7 +456,7 @@ class Trajectory():
 
 class MotionTrackerManager():
 
-    def __init__(self, *, mtracker=True, rec=False, party=False, fig=False, bgv=False, t_lapse=False, cam=True, trajec=True, pi=False, servo=True, lcd_bool=True):
+    def __init__(self, *, mtracker=True, rec=False, party=False, fig=False, bgv=False, t_lapse=False, cam=True, trajec=True, pi=True, servo=True, lcd_bool=True):
 
         self.mtracker = mtracker
         self.rec = rec
@@ -458,7 +467,7 @@ class MotionTrackerManager():
         self.cam = cam
         self.trajec = trajec
         self.pi = pi
-        self.servo = servo
+        self.servoMotor_bool = servo
         self.lcd_bool = lcd_bool
         self.width_corr, self.height_corr = [0, 0], [0, 0] # [150, 250] # width, height
 
@@ -470,7 +479,7 @@ class MotionTrackerManager():
         if self.bgv: self.backgroundVideo = BackgroundVideo() # self.b_video = self.backgroundVideo.load_video()
         if self.t_lapse: self.timelapse = TimeLapse()
         if self.trajec: self.trajectory = Trajectory()
-        if self.servoMotor_bool: self.servoMotor = ServoMotor((self.cam.width, self.cam.height))
+        if self.servoMotor_bool: self.servoMotor = ServoMotor((self.camera.width, self.camera.height))
         if self.lcd_bool: self.lcd = LCD()
 
     
@@ -488,12 +497,14 @@ class MotionTrackerManager():
                 self.timelapse.check(frame=src_frame)
             if self.rec:
                 self.videoRecorder.record_video(frame=src_frame, diff=diff)
+
             if self.trajec:
                 self.trajectory.get_image_moments(frame=frame_diff)
-                if self.servo:
+                if self.servoMotor_bool:
                     self.servoMotor.move(coor=(self.trajectory.trajectory_list[-1]))
                 if self.lcd_bool:
                     self.lcd.update(text=self.servoMotor.curr_angle)
+
             if self.fig:
                 self.figure.update_figure(diff=diff)
             if self.party:
@@ -509,11 +520,11 @@ class MotionTrackerManager():
                     frame = np.array(frame, dtype="uint8")
 
 
-            cv2.rectangle(src_frame, (int(self.trajectory.trajectory_list[-1][0]), int(self.trajectory.trajectory_list[-1][1])), (int(self.trajectory.trajectory_list[-1][0])+10, int(self.trajectory.trajectory_list[-1][1])+10), (0,255,0), thickness=10)
+            # cv2.rectangle(src_frame, (int(self.trajectory.trajectory_list[-1][0]), int(self.trajectory.trajectory_list[-1][1])), (int(self.trajectory.trajectory_list[-1][0])+10, int(self.trajectory.trajectory_list[-1][1])+10), (0,255,0), thickness=10)
             
             # cv2.rectangle(debug_frame, (self.width_corr[0], self.height_corr[0]), (self.width_corr[1], self.height_corr[1]), (0,255,0))
             # cv2.imshow("Source Frame", debug_frame)
-            cv2.imshow("Filter", frame_diff)
+            # cv2.imshow("Filter", frame_diff)
 
             if cv2.waitKey(1) & 0xFF == ord("q"):
                 self.camera.quit() 
