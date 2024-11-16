@@ -3,9 +3,9 @@ import numpy as np
 import time
 from datetime import datetime, timedelta
 import os 
-# import seaborn as sns
-# from tkinter import Tk
-# import matplotlib.pyplot as plt
+import seaborn as sns
+from tkinter import Tk
+import matplotlib.pyplot as plt
 # import pyautogui
 
 # from gpiozero import AngularServo
@@ -188,28 +188,25 @@ class Figure():
             plt.get_current_fig_manager().window.overrideredirect(True)
             # plt.get_current_fig_manager().window.title("")
             
-        self.fig, (self.ax1, self.ax2) = plt.subplots(2, figsize=(8,8))
+        self.fig, (self.ax1, self.ax2) = plt.subplots(2, figsize=(16,16))
+        # plt.get_current_fig_manager().window.state('zoomed')
         colors = sns.color_palette("rocket", 3)[1:]
-        self.fig.patch.set_facecolor('#000000')
-        self.ax1.set_facecolor('#000000')
-        self.ax2.set_facecolor('#000000')
-
-
-        (self.ln1,) = self.ax1.plot(range(self.n_values), np.linspace(0,150, self.n_values), animated=True, c=colors[0])
-        (self.ln2,) = self.ax2.plot(np.linspace(-50, 350, self.n_values), np.linspace(0,0.35, self.n_values), animated=True, c=colors[1])
+        # self.fig.patch.set_facecolor('#000000')
+        # self.ax1.set_facecolor('#000000')
+        # self.ax2.set_facecolor('#000000')
+        (self.ln1,) = self.ax1.plot(range(self.n_values), np.linspace(0,1, self.n_values), animated=True, c=colors[0])
+        (self.ln2,) = self.ax2.plot(np.linspace(-0.5, 2, self.n_values), np.linspace(0,0.35, self.n_values), animated=True, c=colors[1])
         # self.ax2.fill_between(np.linspace(-50, 350, self.n_values), 0, 0, color='blue', label="filling")
 
         plt.show(block=False)
         plt.pause(0.1)
-        # plt.get_current_fig_manager().window.state('zoomed')
-        self.bg = self.fig.canvas.copy_from_bbox(self.fig.bbox)
 
+        self.bg = self.fig.canvas.copy_from_bbox(self.fig.bbox)
         self.ax1.draw_artist(self.ln1)
         self.ax2.draw_artist(self.ln2)
         self.fig.canvas.blit(self.fig.bbox)
 
-
-    def get_current_values(self, *, diff):
+    def get_current_dist(self, *, x):
         def get_central_moments(*, x, k):
             return ((x-x.mean())**k).mean()
         
@@ -218,7 +215,7 @@ class Figure():
         
         if len(self.diffs) == self.n_values:
             del self.diffs[0]
-        self.diffs.append(diff)
+        self.diffs.append(x)
         diffs = np.array(self.diffs)
 
         mean = np.array(diffs).mean()
@@ -237,10 +234,10 @@ class Figure():
                 del central_moment[0]
         return dist
 
-    def update_figure(self, *, diff):
-        dist = self.get_current_values(diff=diff)
-        self.fig.canvas.restore_region(self.bg)
+    def update_figure(self, *, x):
 
+        self.fig.canvas.restore_region(self.bg)
+        dist = self.get_current_dist(x=x)
         self.ln1.set_ydata(self.diffs)
         self.ln2.set_ydata(dist)
 
@@ -334,8 +331,8 @@ class Camera():
                 # self.cap.set(cv2.CAP_PROP_EXPOSURE, 10) 
                 # self.cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 1) # auto mode
             
-                #self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
-                #self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
+                # self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
+                # self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
 
             
                 # cv2.namedWindow("Filter", cv2.WINDOW_NORMAL)
@@ -377,10 +374,18 @@ class Trajectory():
             del self.trajectory_list[0]
     
 
+class Lambda():
+
+    def __init__(self, lamb_func=lambda x: (x)):
+        self.lamb_func = lamb_func
+
+    def __call__(self, lamb_func, frame):
+        return lamb_func(frame)
+
 
 class MotionTrackerManager():
 
-    def __init__(self, *, mtracker=True, rec=False, party=False, fig=False, bgv=False, t_lapse=False, cam=True, trajec=True, pi=True, servo=True, lcd_bool=True):
+    def __init__(self, *, mtracker=True, rec=False, party=False, fig=False, bgv=False, t_lapse=False, cam=True, trajec=False, pi=False, servo=False, lcd_bool=False, lamb_bool=False):
         self.mtracker = mtracker
         self.rec = rec
         self.party = party
@@ -392,6 +397,8 @@ class MotionTrackerManager():
         self.pi = pi
         self.servoMotor_bool = servo
         self.lcd_bool = lcd_bool
+        self.lamb_bool = lamb_bool
+
         self.width_corr, self.height_corr = [0, 0], [0, 0] # [150, 250] # width, height
 
         self.camera = Camera(cam=self.cam, pi=self.pi)    
@@ -404,6 +411,7 @@ class MotionTrackerManager():
         if self.trajec: self.trajectory = Trajectory()
         if self.servoMotor_bool: self.servoMotor = ServoMotor((self.camera.width, self.camera.height))
         if self.lcd_bool: self.lcd = LCD()
+        if self.lamb_bool: self.lamb = Lambda()
 
     
     
@@ -412,6 +420,8 @@ class MotionTrackerManager():
         while True:
             src_frame = self.camera.read()
 
+            if self.lamb_bool: 
+                (frame_test, *entropy) = self.lamb(self.lamb_func, frame=src_frame.copy())
             if self.mtracker:
                 frame = self.motionTracker.preprocess_frame(frame=src_frame.copy())
                 frame_diff, diff = self.motionTracker.track_motion(frame=frame)
@@ -428,7 +438,7 @@ class MotionTrackerManager():
                     self.lcd.update(text=self.servoMotor.curr_angle)
 
             if self.fig:
-                self.figure.update_figure(diff=diff)
+                self.figure.update_figure(x=entropy)
             if self.party:
                 party_glow = self.partyGlow.party_glow(frame_diff=frame_diff)
                 frame = self.partyGlow.add_party_glow(frame=frame, party_glow=party_glow)
@@ -445,7 +455,8 @@ class MotionTrackerManager():
             # cv2.rectangle(src_frame, (int(self.trajectory.trajectory_list[-1][0]), int(self.trajectory.trajectory_list[-1][1])), (int(self.trajectory.trajectory_list[-1][0])+10, int(self.trajectory.trajectory_list[-1][1])+10), (0,255,0), thickness=10)
             
             # cv2.rectangle(debug_frame, (self.width_corr[0], self.height_corr[0]), (self.width_corr[1], self.height_corr[1]), (0,255,0))
-            # cv2.imshow("Source Frame", debug_frame)
+            cv2.imshow("Lambda func", frame_test)
+            cv2.imshow("Source frame", cv2.cvtColor(src_frame, cv2.COLOR_BGR2GRAY))
             # cv2.imshow("Filter", frame_diff)
 
             if cv2.waitKey(1) & 0xFF == ord("q"):
@@ -463,10 +474,11 @@ if __name__ == "__main__":
         party=False,
         fig=False,
         bgv=False,
-        t_lapse=True,
+        t_lapse=False,
         cam=True,
-        trajec=True,
+        trajec=False,
         pi=False,
         servo=False,
-        lcd_bool=False)
+        lcd_bool=False,
+        lamb_bool=False)
     motionTrackerManager.run()
