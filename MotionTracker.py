@@ -1,27 +1,22 @@
 import cv2
 import numpy as np
 import time
-import sys
+from datetime import datetime, timedelta
+import os 
 # import seaborn as sns
 # from tkinter import Tk
 # import matplotlib.pyplot as plt
-from datetime import datetime, timedelta
-import os 
 # import pyautogui
-from gpiozero import AngularServo
-import RPi.GPIO as GPIO
-from RPLCD import CharLCD
-from picamera2 import Picamera2
+
+# from gpiozero import AngularServo
+# import RPi.GPIO as GPIO
+# from RPLCD import CharLCD
+# from picamera2 import Picamera2
 
 
 class MotionTracker():
-    '''
-    Receives the most recent frame.
-    Returns the frame difference.
 
-    '''
     def __init__(self, width_corr, height_corr):
-        
         self.width_corr, self.height_corr = width_corr, height_corr
         self.frames = []
         self.frame_diffs = []
@@ -36,17 +31,14 @@ class MotionTracker():
 
 
     def get_frame_diff(self, *, frames):
-
         curr_frame = np.array(frames[-1], dtype=float)
         last_frame = np.array(frames[0], dtype=float)
-        
         frame_diff = last_frame - curr_frame
         # frame_diff = cv2.filter2D(src=frame_diff, 
         #                            ddepth=-1, 
         #                            kernel=self.kernel) 
         _, frame_diff = cv2.threshold(frame_diff, 5, 255, cv2.THRESH_TOZERO)
         diff = (frame_diff**2).mean()
-
         return frame_diff, diff
 
     def preprocess_frame(self, *, frame):
@@ -59,7 +51,6 @@ class MotionTracker():
         self.frames.append(frame)
         if len(self.frames) > 2: 
             del self.frames[0]
-
         return self.get_frame_diff(frames=self.frames)  
     
     def render_text(self, *, frame, text="", position=(30,30)):
@@ -71,55 +62,37 @@ class MotionTracker():
         cv2.putText(frame, text, position, font, font_scale, font_color, font_thickness)
         
 
-
 class VideoRecorder():
 
-    '''
-    
-    Receives the most recent frame and keeps it in its buffer.
-    Saves videos.
-
-    '''
     def __init__(self):
         self.n_saved = 0
+        self.threshold = 3
         self.passed_frames = 0
         self.rec_buffer = []
-        self.diffs = []
-        self.threshold = 3
-        self.triggered = False
         self.recording = []
-
-        self.utc_time = datetime.utcnow()
-        self.date_string = self.utc_time.strftime('%Y-%m-%d')
-        self.time_string = self.utc_time.strftime('%H-%M-%S')
-        self.germany_offset = timedelta(hours=1)
-
-        self.year_folder = self.utc_time.strftime('%Y')
-        self.month_folder = self.utc_time.strftime('%m')
-        self.day_folder = self.utc_time.strftime('%d')
-        self.folder_path = os.path.join(self.year_folder, self.month_folder, self.day_folder)
-
+        self.diffs = []
+        self.triggered = False
         self.ABS_PATH = os.path.abspath("")
-        self.TODAY_RECORDING_PATH = os.path.join(self.folder_path, f'{self.time_string}.mp4')
-        os.makedirs(self.folder_path, exist_ok=True)
-
 
 
     def save_video(self):
-        utc_time = datetime.utcnow()
-        germany_time = utc_time + self.germany_offset
-        time_string = germany_time.strftime('%H-%M-%S')
-        fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # Use 'mp4v' codec for MP4 format
-        out = cv2.VideoWriter(os.path.join(self.folder_path, f"{time_string}.mp4"), fourcc, 20.0, (self.recording[-1].shape[1], self.recording[-1].shape[0]), True)  
+        now = datetime.now()
+        date = now.strftime('%Y-%m-%d')
+        TODAY_PATH = os.path.join(self.ABS_PATH, "Recordings", "Videos", f"{date}")
+        os.makedirs(TODAY_PATH, exist_ok=True)
+        
+        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+        out = cv2.VideoWriter(os.path.join(TODAY_PATH, f"{now.strftime('%H-%M-%S')}.mp4"), fourcc, 20.0, (self.recording[-1].shape[1], self.recording[-1].shape[0]), isColor=True)  
+        
         for f in self.recording: 
             out.write(np.array(f, dtype="uint8"))
         out.release()
+
         self.n_saved += 1
-        print(f"No.{self.n_saved} video saved!")
-        return True
+        print(f"Video: No.{self.n_saved} saved.")
+        
 
     def record_video(self,* , frame, diff):
-        
         self.rec_buffer.append(frame)
         if len(self.rec_buffer) > 20: 
             del self.rec_buffer[0]
@@ -137,35 +110,22 @@ class VideoRecorder():
             self.triggered = False
 
     def check_trigger(self,* , diff):
-
         if diff > self.threshold or self.passed_frames != 0:
             self.triggered = True
         self.recording = self.rec_buffer.copy()
-
-    def display_n_saved(self):
-        print(self.n_saved)
 
 
 
 class PartyGlow():
 
-    '''
-    Receives the frame difference and turns it into a glow.
-    Returns the glow frame.
-
-    '''
     def __init__(self):
-
         self.color_code = 0
         self.start = time.time()
 
     def init_frame_glow(self, frame):
-        self.frame_glow = np.zeros(shape=(frame.shape[0], frame.shape[1], 3),
-                                    dtype="float")
-
+        self.frame_glow = np.zeros(shape=(frame.shape[0], frame.shape[1], 3), dtype="float")
 
     def get_frame_glow(self, *, frame_diff):
-
         self.frame_glow *= .1
         self.frame_glow[:, :, self.color_code] = 2 * frame_diff
         self.frame_glow[:,:, 0] += frame_diff
@@ -173,13 +133,11 @@ class PartyGlow():
         self.frame_glow[:,:, 2] += frame_diff
         return self.frame_glow
 
-
     def get_color(self):
         now = time.time()
         self.color_code = int((round(now-self.start, 0)%30)/10)
 
     def party_glow(self, *, frame_diff):
-
         self.get_color()
         frame_glow = self.get_frame_glow(frame_diff=frame_diff)
         return frame_glow
@@ -191,55 +149,32 @@ class PartyGlow():
         return np.array(frame + party_glow, dtype="uint8")
 
 
-
-class TimeLapse():
+class Timelapse():
 
     def __init__(self):
-        self.utc_time = datetime.utcnow()
-        self.date_string = self.utc_time.strftime('%Y-%m-%d')
-        self.time_string = self.utc_time.strftime('%H-%M-%S')
-        self.germany_offset = timedelta(hours=2)
-
-        self.year_folder = self.utc_time.strftime('%Y')
-        self.month_folder = self.utc_time.strftime('%m')
-        self.day_folder = self.utc_time.strftime('%d')
-        self.folder_path = os.path.join(self.year_folder, self.month_folder, self.day_folder)
-
-        self.ABS_PATH = os.path.abspath("")
-        self.TODAY_RECORDING_PATH = os.path.join(self.folder_path, f'{self.time_string}.mp4')
-        os.makedirs(self.folder_path, exist_ok=True)
-
         self.n_saved = 0
         self.counter = 0
-        self.interval = 1000
-
-    def check(self, frame):
-        self.counter += 1
-        if self.counter % self.interval == 0:
-            self.save_photo(frame) 
+        self.interval = 10.0
+        self.start = time.time()
+        self.ABS_PATH = os.path.abspath("")
 
     def save_photo(self, frame):
 
-        utc_time = datetime.utcnow()
-        germany_time = utc_time + self.germany_offset
-        time_string = germany_time.strftime('%H-%M-%S')
-        
-        cv2.imwrite(os.path.join(self.folder_path, f"{time_string}.jpg"), frame)
-        self.n_saved += 1
-        print(f"No.{self.n_saved} photo saved!")
+        self.diff = time.time() - self.start
+        if self.diff > self.interval:
+            now = datetime.now()
+            date = now.strftime('%Y-%m-%d')
+            TODAY_PATH = os.path.join(self.ABS_PATH, "Recordings", "Timelapse", f"{date}")
+            os.makedirs(TODAY_PATH, exist_ok=True)
+            cv2.imwrite(os.path.join(TODAY_PATH, f"{now.strftime('%H-%M-%S')}.jpg"), frame)
+            self.n_saved += 1
+            print(f"Timelapse: No.{self.n_saved} saved.")
+            self.start = time.time()
 
-    
 
 class Figure():
 
-    '''
-    
-    Receives the frame difference and turns it into statistics.
-    Displays the fiure on top of the shown frame.
-
-    '''
     def __init__(self, overlay=False):
-
         self.timesteps = 25
         self.n_values = 100
         self.diffs = []
@@ -300,11 +235,9 @@ class Figure():
         for central_moment in self.central_moments:
             if len(central_moment)==25:
                 del central_moment[0]
-
         return dist
 
     def update_figure(self, *, diff):
-
         dist = self.get_current_values(diff=diff)
         self.fig.canvas.restore_region(self.bg)
 
@@ -326,24 +259,24 @@ class Figure():
 
 class ServoMotor():
 
-        def __init__(self, resolution):
-            self.resolution = [r/2 for r in resolution]
-            self.boundaries = 90
-            self.threshold = 100
-            
-            self.curr_angle = 0
-            self.servo = AngularServo(18, min_pulse_width=0.0006, max_pulse_width=0.0023)
+    def __init__(self, resolution):
+        self.resolution = [r/2 for r in resolution]
+        self.boundaries = 90
+        self.threshold = 100
+        
+        self.curr_angle = 0
+        self.servo = AngularServo(18, min_pulse_width=0.0006, max_pulse_width=0.0023)
 
-        def move(self, coor):
-            diff = [r-c for c, r in zip(coor, self.resolution)]
+    def move(self, coor):
+        diff = [r-c for c, r in zip(coor, self.resolution)]
 
-            if (diff[0]>self.threshold) and ((self.curr_angle-2)>-self.boundaries):
-                self.curr_angle -= 2
-            elif (diff[0]<-self.threshold) and ((self.curr_angle+2)<self.boundaries):
-                self.curr_angle += 2
+        if (diff[0]>self.threshold) and ((self.curr_angle-2)>-self.boundaries):
+            self.curr_angle -= 2
+        elif (diff[0]<-self.threshold) and ((self.curr_angle+2)<self.boundaries):
+            self.curr_angle += 2
 
-            if abs(self.servo.angle-self.curr_angle) > 20:
-                self.servo.angle = self.curr_angle
+        if abs(self.servo.angle-self.curr_angle) > 20:
+            self.servo.angle = self.curr_angle
             
 
 class LCD():
@@ -383,11 +316,9 @@ class BackgroundVideo():
         return self.video[self.frame_idx]
     
 
-
 class Camera():
 
     def __init__(self, cam, pi):
-
         self.cam, self.pi = cam, pi
         self.width, self.height = 1280, 720
 
@@ -410,19 +341,16 @@ class Camera():
                 # cv2.namedWindow("Filter", cv2.WINDOW_NORMAL)
                 # cv2.setWindowProperty("Filter", cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
         
-
     def read(self):
         if self.cam:
             ret, src_frame = (True, self.cap.capture_array()) if self.pi else self.cap.read()
         else:
             ret, src_frame = (True, pyautogui.screenshot())
-        
         if not ret:
             print("Error: cap not found")
             self.quit()
         return src_frame
         
-    
     def quit(self):
         if self.cam:
             self.cap.release()
@@ -453,7 +381,6 @@ class Trajectory():
 class MotionTrackerManager():
 
     def __init__(self, *, mtracker=True, rec=False, party=False, fig=False, bgv=False, t_lapse=False, cam=True, trajec=True, pi=True, servo=True, lcd_bool=True):
-
         self.mtracker = mtracker
         self.rec = rec
         self.party = party
@@ -473,7 +400,7 @@ class MotionTrackerManager():
         if self.party: self.partyGlow = PartyGlow()
         if self.fig: self.figure = Figure() 
         if self.bgv: self.backgroundVideo = BackgroundVideo() # self.b_video = self.backgroundVideo.load_video()
-        if self.t_lapse: self.timelapse = TimeLapse()
+        if self.t_lapse: self.timelapse = Timelapse()
         if self.trajec: self.trajectory = Trajectory()
         if self.servoMotor_bool: self.servoMotor = ServoMotor((self.camera.width, self.camera.height))
         if self.lcd_bool: self.lcd = LCD()
@@ -483,14 +410,13 @@ class MotionTrackerManager():
     def run(self):
     
         while True:
-
             src_frame = self.camera.read()
 
             if self.mtracker:
                 frame = self.motionTracker.preprocess_frame(frame=src_frame.copy())
                 frame_diff, diff = self.motionTracker.track_motion(frame=frame)
             if self.t_lapse:
-                self.timelapse.check(frame=src_frame)
+                self.timelapse.save_photo(frame=src_frame)
             if self.rec:
                 self.videoRecorder.record_video(frame=src_frame, diff=diff)
 
@@ -531,5 +457,16 @@ class MotionTrackerManager():
                 
 
 if __name__ == "__main__":
-    motionTrackerManager = MotionTrackerManager()
+    motionTrackerManager = MotionTrackerManager(
+        mtracker=True,
+        rec=False,
+        party=False,
+        fig=False,
+        bgv=False,
+        t_lapse=True,
+        cam=True,
+        trajec=True,
+        pi=False,
+        servo=False,
+        lcd_bool=False)
     motionTrackerManager.run()
