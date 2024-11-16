@@ -332,23 +332,18 @@ class ServoMotor():
             self.threshold = 100
             
             self.curr_angle = 0
-            self.acceleration = 0
-
             self.servo = AngularServo(18, min_pulse_width=0.0006, max_pulse_width=0.0023)
 
         def move(self, coor):
             diff = [r-c for c, r in zip(coor, self.resolution)]
 
-            if (diff[0]>self.threshold) and (self.curr_angle>-self.boundaries):
-                self.acceleration -= 2
-            elif (diff[0]<-self.threshold) and (self.curr_angle<self.boundaries):
-                self.acceleration += 2
+            if (diff[0]>self.threshold) and ((self.curr_angle-2)>-self.boundaries):
+                self.curr_angle -= 2
+            elif (diff[0]<-self.threshold) and ((self.curr_angle+2)<self.boundaries):
+                self.curr_angle += 2
 
-            if (abs(self.acceleration)>10) and (self.curr_angle<self.boundaries):
-                print(self.acceleration)
-                self.servo.angle += self.acceleration
-                self.curr_angle += self.acceleration
-                self.acceleration = 0
+            if abs(self.servo.angle-self.curr_angle) > 20:
+                self.servo.angle = self.curr_angle
             
 
 class LCD():
@@ -359,7 +354,7 @@ class LCD():
     
     def update(self, text):
         self.lcd.clear()
-        self.lcd.write_string(f"Current angle: {text}")
+        self.lcd.write_string(f"Curr angle: {text:.0f}")
 
 
 class BackgroundVideo():
