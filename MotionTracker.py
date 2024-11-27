@@ -326,13 +326,13 @@ class Camera():
                 self.cap.configure(video_config)
                 self.cap.start()
             else:
-                self.cap = cv2.VideoCapture(0) # Laptop 
-                # self.cap = cv2.VideoCapture(0, cv2.CAP_DSHOW) 
+                # self.cap = cv2.VideoCapture(0) # Laptop 
+                self.cap = cv2.VideoCapture(0, cv2.CAP_DSHOW) 
                 # self.cap.set(cv2.CAP_PROP_EXPOSURE, 10) 
                 # self.cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 1) # auto mode
             
-                # self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
-                # self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
+                self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
+                self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
 
             
                 # cv2.namedWindow("Filter", cv2.WINDOW_NORMAL)
@@ -421,7 +421,7 @@ class MotionTrackerManager():
             src_frame = self.camera.read()
 
             if self.lamb_bool: 
-                (frame_test, *entropy) = self.lamb(self.lamb_func, frame=src_frame.copy())
+                frame_test = self.lamb(self.lamb_func, frame=src_frame.copy())
             if self.mtracker:
                 frame = self.motionTracker.preprocess_frame(frame=src_frame.copy())
                 frame_diff, diff = self.motionTracker.track_motion(frame=frame)
@@ -438,7 +438,7 @@ class MotionTrackerManager():
                     self.lcd.update(text=self.servoMotor.curr_angle)
 
             if self.fig:
-                self.figure.update_figure(x=entropy)
+                self.figure.update_figure(x=diff)
             if self.party:
                 party_glow = self.partyGlow.party_glow(frame_diff=frame_diff)
                 frame = self.partyGlow.add_party_glow(frame=frame, party_glow=party_glow)
@@ -451,13 +451,14 @@ class MotionTrackerManager():
                     frame = np.where(frame>255, 255, frame)
                     frame = np.array(frame, dtype="uint8")
 
-
-            # cv2.rectangle(src_frame, (int(self.trajectory.trajectory_list[-1][0]), int(self.trajectory.trajectory_list[-1][1])), (int(self.trajectory.trajectory_list[-1][0])+10, int(self.trajectory.trajectory_list[-1][1])+10), (0,255,0), thickness=10)
-            
             # cv2.rectangle(debug_frame, (self.width_corr[0], self.height_corr[0]), (self.width_corr[1], self.height_corr[1]), (0,255,0))
-            cv2.imshow("Lambda func", frame_test)
-            cv2.imshow("Source frame", cv2.cvtColor(src_frame, cv2.COLOR_BGR2GRAY))
+            if self.trajec:
+                cv2.rectangle(src_frame, (int(self.trajectory.trajectory_list[-1][0]), int(self.trajectory.trajectory_list[-1][1])), (int(self.trajectory.trajectory_list[-1][0])+10, int(self.trajectory.trajectory_list[-1][1])+10), (0,255,0), thickness=10)
+            if self.lamb_bool:
+                cv2.imshow("Lambda", frame_test)
+            
             # cv2.imshow("Filter", frame_diff)
+            cv2.imshow("Source", cv2.cvtColor(src_frame, cv2.COLOR_RGB2GRAY))
 
             if cv2.waitKey(1) & 0xFF == ord("q"):
                 self.camera.quit() 
@@ -472,11 +473,11 @@ if __name__ == "__main__":
         mtracker=True,
         rec=False,
         party=False,
-        fig=False,
+        fig=True,
         bgv=False,
         t_lapse=False,
         cam=True,
-        trajec=False,
+        trajec=True,
         pi=False,
         servo=False,
         lcd_bool=False,
