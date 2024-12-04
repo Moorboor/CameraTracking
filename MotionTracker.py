@@ -1,11 +1,12 @@
 import cv2
 import numpy as np
 import time
-from datetime import datetime, timedelta
+from datetime import datetime
 import os 
 import seaborn as sns
 from tkinter import Tk
 import matplotlib.pyplot as plt
+import subprocess
 # import pyautogui
 
 # from gpiozero import AngularServo
@@ -147,7 +148,8 @@ class PartyGlow():
 
 class Timelapse():
 
-    def __init__(self):
+    def __init__(self, pi):
+        self.pi = pi
         self.n_saved = 0
         self.counter = 0
         self.interval = 10.0
@@ -158,11 +160,14 @@ class Timelapse():
 
         self.diff = time.time() - self.start
         if self.diff > self.interval:
-            now = datetime.now()
+            now = datetime.now()  
             date = now.strftime('%Y-%m-%d')
             TODAY_PATH = os.path.join(self.ABS_PATH, "Recordings", "Timelapse", f"{date}")
             os.makedirs(TODAY_PATH, exist_ok=True)
-            cv2.imwrite(os.path.join(TODAY_PATH, f"{now.strftime('%H-%M-%S')}.jpg"), frame)
+            if self.pi:
+                subprocess.run("rpicam-still", "--raw", "--output", f"{now.strftime('%H-%M-%S')}.jpg", shell=True, check=True)
+            else:
+                cv2.imwrite(os.path.join(TODAY_PATH, f"{now.strftime('%H-%M-%S')}.jpg"), frame)
             self.n_saved += 1
             print(f"Timelapse: No.{self.n_saved} saved.")
             self.start = time.time()
@@ -403,7 +408,7 @@ class MotionTrackerManager():
         if self.party: self.partyGlow = PartyGlow()
         if self.fig: self.figure = Figure() 
         if self.bgv: self.backgroundVideo = BackgroundVideo() # self.b_video = self.backgroundVideo.load_video()
-        if self.t_lapse: self.timelapse = Timelapse()
+        if self.t_lapse: self.timelapse = Timelapse(pi=self.pi)
         if self.trajec: self.trajectory = Trajectory()
         if self.servoMotor_bool: self.servoMotor = ServoMotor((self.camera.width, self.camera.height))
         if self.lcd_bool: self.lcd = LCD()
