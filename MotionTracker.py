@@ -29,15 +29,11 @@ class MotionTracker():
             self.width_corr[1] = frame.shape[1]
         return frame[self.height_corr[0]:self.height_corr[1], self.width_corr[0]:self.width_corr[1]]
 
-
     def get_frame_diff(self, *, frames):
-        curr_frame = np.array(frames[-1], dtype=float)
-        last_frame = np.array(frames[0], dtype=float)
-        frame_diff = last_frame - curr_frame
-        # frame_diff = cv2.filter2D(src=frame_diff, 
-        #                            ddepth=-1, 
-        #                            kernel=self.kernel) 
+        frame_diff = frames[0] - frames[-1] 
+        frame_diff = np.clip(frame_diff, 0, 255)
         _, frame_diff = cv2.threshold(frame_diff, 5, 255, cv2.THRESH_TOZERO)
+        frame_diff = cv2.erode(frame_diff, kernel=self.kernel)
         diff = (frame_diff**2).mean()
         return frame_diff, diff
 
@@ -456,9 +452,8 @@ class MotionTrackerManager():
                 cv2.rectangle(src_frame, (int(self.trajectory.trajectory_list[-1][0]), int(self.trajectory.trajectory_list[-1][1])), (int(self.trajectory.trajectory_list[-1][0])+10, int(self.trajectory.trajectory_list[-1][1])+10), (0,255,0), thickness=10)
             if self.lamb_bool:
                 cv2.imshow("Lambda", frame_test)
-            
             # cv2.imshow("Filter", frame_diff)
-            cv2.imshow("Source", cv2.cvtColor(src_frame, cv2.COLOR_RGB2GRAY))
+            cv2.imshow("Source", src_frame)
 
             if cv2.waitKey(1) & 0xFF == ord("q"):
                 self.camera.quit() 
@@ -473,7 +468,7 @@ if __name__ == "__main__":
         mtracker=True,
         rec=False,
         party=False,
-        fig=True,
+        fig=False,
         bgv=False,
         t_lapse=False,
         cam=True,

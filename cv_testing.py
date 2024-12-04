@@ -46,5 +46,5 @@ def dilate(frame):
 
 
 motionTrackerManager = mt.MotionTrackerManager(fig=False, lamb_bool=True, trajec=True)
-motionTrackerManager.lamb_func = he# lambda x: (np.where(x>100, x, 0), (2))
+motionTrackerManager.lamb_func = dilate# lambda x: (np.where(x>100, x, 0), (2))
 motionTrackerManager.run()
