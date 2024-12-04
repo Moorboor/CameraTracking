@@ -12,7 +12,7 @@ import subprocess
 # from gpiozero import AngularServo
 # import RPi.GPIO as GPIO
 # from RPLCD import CharLCD
-# from picamera2 import Picamera2
+from picamera2 import Picamera2
 
 
 class MotionTracker():
@@ -148,8 +148,7 @@ class PartyGlow():
 
 class Timelapse():
 
-    def __init__(self, pi):
-        self.pi = pi
+    def __init__(self):
         self.n_saved = 0
         self.counter = 0
         self.interval = 10.0
@@ -164,10 +163,7 @@ class Timelapse():
             date = now.strftime('%Y-%m-%d')
             TODAY_PATH = os.path.join(self.ABS_PATH, "Recordings", "Timelapse", f"{date}")
             os.makedirs(TODAY_PATH, exist_ok=True)
-            if self.pi:
-                subprocess.run("rpicam-still", "--raw", "--output", f"{now.strftime('%H-%M-%S')}.jpg", shell=True, check=True)
-            else:
-                cv2.imwrite(os.path.join(TODAY_PATH, f"{now.strftime('%H-%M-%S')}.jpg"), frame)
+            cv2.imwrite(os.path.join(TODAY_PATH, f"{now.strftime('%H-%M-%S')}.jpg"), frame)
             self.n_saved += 1
             print(f"Timelapse: No.{self.n_saved} saved.")
             self.start = time.time()
@@ -408,7 +404,7 @@ class MotionTrackerManager():
         if self.party: self.partyGlow = PartyGlow()
         if self.fig: self.figure = Figure() 
         if self.bgv: self.backgroundVideo = BackgroundVideo() # self.b_video = self.backgroundVideo.load_video()
-        if self.t_lapse: self.timelapse = Timelapse(pi=self.pi)
+        if self.t_lapse: self.timelapse = Timelapse()
         if self.trajec: self.trajectory = Trajectory()
         if self.servoMotor_bool: self.servoMotor = ServoMotor((self.camera.width, self.camera.height))
         if self.lcd_bool: self.lcd = LCD()
@@ -458,7 +454,7 @@ class MotionTrackerManager():
             if self.lamb_bool:
                 cv2.imshow("Lambda", frame_test)
             # cv2.imshow("Filter", frame_diff)
-            cv2.imshow("Source", src_frame)
+            # cv2.imshow("Source", src_frame)
 
             if cv2.waitKey(1) & 0xFF == ord("q"):
                 self.camera.quit() 
