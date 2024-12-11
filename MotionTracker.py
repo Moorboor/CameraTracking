@@ -6,13 +6,12 @@ import os
 import seaborn as sns
 from tkinter import Tk
 import matplotlib.pyplot as plt
-import subprocess
-# import pyautogui
+import pyautogui
 
 # from gpiozero import AngularServo
 # import RPi.GPIO as GPIO
 # from RPLCD import CharLCD
-from picamera2 import Picamera2
+# from picamera2 import Picamera2
 
 
 class MotionTracker():
@@ -40,7 +39,7 @@ class MotionTracker():
 
     def preprocess_frame(self, *, frame):
         frame = self.set_focus(frame=frame)
-        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        frame = cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY)
         return frame
     
     
@@ -340,6 +339,7 @@ class Camera():
             ret, src_frame = (True, self.cap.capture_array()) if self.pi else self.cap.read()
         else:
             ret, src_frame = (True, pyautogui.screenshot())
+            src_frame = np.array(src_frame)
         if not ret:
             print("Error: cap not found")
             self.quit()
@@ -454,7 +454,7 @@ class MotionTrackerManager():
             if self.lamb_bool:
                 cv2.imshow("Lambda", frame_test)
             # cv2.imshow("Filter", frame_diff)
-            # cv2.imshow("Source", src_frame)
+            cv2.imshow("Source", src_frame)
 
             if cv2.waitKey(1) & 0xFF == ord("q"):
                 self.camera.quit() 

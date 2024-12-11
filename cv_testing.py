@@ -3,7 +3,7 @@ import numpy as np
 import cv2
 
 
-def he(frame):
+def histogram_equalize(frame):
 
     def get_information_content(frame):
         hist = np.array([np.where(frame==i ,1 ,0).sum() for i in range(256)])
@@ -28,23 +28,69 @@ def he(frame):
 
 
 
-n = 11
-kernel = np.ones(n**2).reshape(n,-1) * 1/n**2
-kernel_sobel = np.array([-1,0,1] * 3).reshape(3,3)
-kernel_sobel[1, :] *= 2
-kernel_sobel = 1/4 * np.flip(kernel_sobel.T)
 
-def convolve(frame):
-    return cv2.filter2D(src=frame, ddepth=-1, kernel=kernel)
 
+element = cv2.getStructuringElement(cv2.MORPH_CROSS,(3,3))
 def erode(frame):
-    return cv2.erode(frame, kernel=kernel)
+    return cv2.erode(frame, kernel=element)
 
 def dilate(frame):
-    return cv2.dilate(frame, kernel=kernel)
+    return cv2.dilate(frame, kernel=element)
+
+def hough_transform(frame):
+    temp = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    temp = cv2.Canny(temp, 100, 150, apertureSize=3)
+
+    thetas = np.linspace(-np.pi/2, np.pi/2, 180)
+    hough_space = np.zeros_like(frame)
+    p = np.where(temp)
+    r = p[0][:, None]*np.cos(thetas) + p[1][:, None]*np.sin(thetas) 
+    r = np.clip(r, -frame.shape[0], frame.shape[0]-1)
 
 
+    for x in np.array_split(r, indices_or_sections=10):
+        for i in range(len(thetas)):
+            hough_space[x[:,i].astype(int), i*7:(i+1)*7] += 255//10
+    lines = None
+    # lines = cv2.HoughLines(temp, rho=1, theta=np.pi/180, threshold=250)
+    if lines is not None:
+        for r_theta in lines:
+            arr = np.array(r_theta[0], dtype=np.float64)
+            r, theta = arr
+            a = np.cos(theta)
+            b = np.sin(theta)
+            x0 = a*r
+            y0 = b*r
+            x1 = int(x0 + 1000*(-b))
+            y1 = int(y0 + 1000*(a))
+            x2 = int(x0 - 1000*(-b))
+            y2 = int(y0 - 1000*(a))
+            cv2.line(frame, (x1, y1), (x2, y2), color=(0, 255, 0), thickness=2)
 
-motionTrackerManager = mt.MotionTrackerManager(fig=False, lamb_bool=True, trajec=True)
-motionTrackerManager.lamb_func = dilate# lambda x: (np.where(x>100, x, 0), (2))
+    return hough_space
+ 
+
+
+def skeletonize(frame):
+    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+    size = np.size(frame)
+    skel = np.zeros(frame.shape, dtype=np.uint8)
+    
+    ret, frame = cv2.threshold(frame, 127, 255, 0)
+    
+    while True:
+        eroded = cv2.erode(frame, element)
+        temp = cv2.dilate(eroded, element)
+        temp = cv2.subtract(frame, temp)
+        skel = cv2.bitwise_or(skel, temp)
+        frame = eroded.copy()
+    
+        zeros = size - frame.sum()
+        if zeros==size:
+            break
+    return skel
+
+motionTrackerManager = mt.MotionTrackerManager(fig=False, lamb_bool=True, trajec=False, cam=True, mtracker=False)
+motionTrackerManager.lamb_func = hough_transform
 motionTrackerManager.run()
